@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const rolSeleccionado = document.getElementById("rol").value;
 
             if (rolSeleccionado === "administrador") {
-                window.location.href = "index.html";   // Panel general / Administrador
+                window.location.href = "dashboard.html?v=2";   // Panel general / Administrador
             } else if (rolSeleccionado === "repartidor") {
                 window.location.href = "repartidor.html"; // Vista de Repartidor
             } else if (rolSeleccionado === "cliente") {

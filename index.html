@@ -2,70 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=dashboard.html">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rápido Express - Panel de Control</title>
-    <!-- Fuentes e Iconos -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Enlace al archivo CSS externo -->
-    <link rel="stylesheet" href="style.css">
+    <title>Rapido Express - Panel de Control</title>
 </head>
 <body>
-
-    <header class="header">
-        <div class="brand">
-            <i class="fa-solid fa-truck-fast"></i>
-            <h1>Rápido Express</h1>
-        </div>
-        <div style="font-size: 0.9rem; color: var(--text-muted);">
-            <i class="fa-solid fa-circle" style="color: var(--accent-green); font-size: 0.6rem;"></i> Backend Conectado
-        </div>
-    </header>
-
-    <div class="grid-container">
-        <!-- Panel Izquierdo: Crear Pedido -->
-        <div class="glass-panel">
-            <h2 class="section-title"><i class="fa-solid fa-box"></i> Nuevo Envío</h2>
-            <form id="formPedido">
-                <div class="form-group">
-                    <label>ID Cliente</label>
-                    <input type="number" id="idCliente" class="form-control" value="1" required>
-                </div>
-                <div class="form-group">
-                    <label>Dirección de Recogida</label>
-                    <input type="text" id="dirRecogida" class="form-control" placeholder="Ej: Calle 10 # 45-20" required>
-                </div>
-                <div class="form-group">
-                    <label>Dirección de Entrega</label>
-                    <input type="text" id="dirEntrega" class="form-control" placeholder="Ej: Carrera 43A # 30-15" required>
-                </div>
-                <div class="form-group">
-                    <label>Valor del Servicio ($)</label>
-                    <input type="number" id="valorServicio" class="form-control" value="8500" required>
-                </div>
-                <div class="form-group">
-                    <label>Método de Pago</label>
-                    <select id="metodoPago" class="form-control">
-                        <option value="Efectivo">Efectivo</option>
-                        <option value="Transferencia">Transferencia</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fa-solid fa-paper-plane"></i> Crear Pedido
-                </button>
-            </form>
-        </div>
-
-        <!-- Panel Derecho: Lista de Pedidos en Vivo -->
-        <div class="glass-panel">
-            <h2 class="section-title"><i class="fa-solid fa-list-check"></i> Envíos en Tiempo Real</h2>
-            <div id="contenedorPedidos" class="orders-grid">
-                <!-- Se cargará dinámicamente con JavaScript -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Enlace al archivo JavaScript externo -->
-    <script src="script.js" defer></script>
+    <p>Cargando panel de control...</p>
+    <script>
+        window.location.replace("dashboard.html");
+    </script>
 </body>
 </html>

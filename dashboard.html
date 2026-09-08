@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rápido Express - Panel de Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+    <header class="header">
+        <div class="brand">
+            <i class="fa-solid fa-truck-fast"></i>
+            <h1>Rápido Express</h1>
+        </div>
+        <div class="header-actions">
+            <span class="connection-status">
+                <i class="fa-solid fa-circle"></i> Backend conectado
+            </span>
+            <a class="btn-logout" id="btnLogout" href="login.html">
+                <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
+            </a>
+        </div>
+    </header>
+
+    <div class="grid-container">
+        <div class="glass-panel">
+            <h2 class="section-title"><i class="fa-solid fa-box"></i> Nuevo Envío</h2>
+            <form id="formPedido">
+                <div class="form-group">
+                    <label>ID Cliente</label>
+                    <input type="number" id="idCliente" class="form-control" value="1" required>
+                </div>
+                <div class="form-group">
+                    <label>Dirección de Recogida</label>
+                    <input type="text" id="dirRecogida" class="form-control" placeholder="Ej: Calle 10 # 45-20" required>
+                </div>
+                <div class="form-group">
+                    <label>Dirección de Entrega</label>
+                    <input type="text" id="dirEntrega" class="form-control" placeholder="Ej: Carrera 43A # 30-15" required>
+                </div>
+                <div class="form-group">
+                    <label>Valor del Servicio ($)</label>
+                    <input type="number" id="valorServicio" class="form-control" value="8500" required>
+                </div>
+                <div class="form-group">
+                    <label>Método de Pago</label>
+                    <select id="metodoPago" class="form-control">
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Transferencia">Transferencia</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i> Crear Pedido
+                </button>
+            </form>
+        </div>
+
+        <div class="glass-panel">
+            <h2 class="section-title"><i class="fa-solid fa-list-check"></i> Envíos en Tiempo Real</h2>
+            <div id="contenedorPedidos" class="orders-grid"></div>
+        </div>
+    </div>
+
+    <script src="script.js?v=3" defer></script>
+</body>
+</html>

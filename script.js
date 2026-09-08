@@ -3,6 +3,33 @@ const API_URL = "http://127.0.0.1:8000";
 document.addEventListener("DOMContentLoaded", () => {
     cargarPedidos();
 
+    let btnLogout = document.getElementById("btnLogout");
+    if (!btnLogout) {
+        btnLogout = document.createElement("a");
+        btnLogout.id = "btnLogout";
+        btnLogout.href = "login.html";
+        btnLogout.textContent = "Cerrar sesión";
+        btnLogout.style.cssText = [
+            "position: fixed",
+            "top: 24px",
+            "right: 24px",
+            "z-index: 1000",
+            "display: inline-flex",
+            "padding: 12px 18px",
+            "border-radius: 8px",
+            "background: #1e3a60",
+            "color: #ffffff",
+            "font: 600 14px Arial, sans-serif",
+            "text-decoration: none",
+            "box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3)"
+        ].join(";");
+        document.body.appendChild(btnLogout);
+    }
+
+    btnLogout.addEventListener("click", () => {
+        window.location.replace("login.html");
+    });
+
     // Evento para guardar un pedido desde el formulario visual
     const formPedido = document.getElementById("formPedido");
     

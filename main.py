@@ -1,11 +1,15 @@
 from datetime import datetime
+from pathlib import Path
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import mysql.connector
 from pydantic import BaseModel
 from typing import Optional
 
 app = FastAPI()
+BASE_DIR = Path(__file__).resolve().parent
 
 # Configurar CORS para permitir peticiones sin bloqueos del navegador
 app.add_middleware(
@@ -44,7 +48,7 @@ class ActualizarEstado(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"mensaje": "¡El servidor de Rápido Express está activo!"}
+    return FileResponse(BASE_DIR / "login.html")
 
 @app.get("/probar-conexion")
 def probar_conexion():
@@ -315,3 +319,7 @@ def obtener_pedido_por_id(id_pedido: int):
         return {"pedido": pedido}
     except Exception as e:
         return {"error": str(e)}
+
+
+# Servir la interfaz web junto con la API cuando se inicia FastAPI.
+app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="frontend")
