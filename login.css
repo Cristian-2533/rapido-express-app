@@ -1,0 +1,235 @@
+:root {
+    --blue-dark: #1e3a60;
+    --blue-accent: #2563eb;
+    --bg-page: #3b82f6;
+    --text-dark: #1e293b;
+    --text-muted: #64748b;
+    --border-color: #cbd5e1;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+    background: radial-gradient(circle at center, #144e95 0%, #144e95 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1.5rem;
+}
+
+/* Tarjeta Principal */
+.login-card {
+    display: flex;
+    width: 100%;
+    max-width: 900px;
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Panel Izquierdo */
+.login-sidebar {
+    width: 42%;
+    background-color: var(--blue-dark);
+    color: #ffffff;
+    padding: 2.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.login-sidebar h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.login-sidebar .subtitle {
+    font-size: 0.85rem;
+    color: #93c5fd;
+    margin-bottom: 2rem;
+}
+
+.section-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.features-section ul {
+    list-style: none;
+}
+
+.features-section li {
+    font-size: 0.85rem;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: #e2e8f0;
+}
+
+.features-section i {
+    font-size: 0.5rem;
+    color: #60a5fa;
+}
+
+.sidebar-footer {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 2rem;
+}
+
+/* Formulario Derecho */
+.login-form-container {
+    width: 58%;
+    padding: 2.5rem 2.5rem;
+    background: #ffffff;
+}
+
+.login-form-container h2 {
+    color: var(--text-dark);
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.form-instruction {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+}
+
+.input-group {
+    margin-bottom: 1.2rem;
+}
+
+.input-group label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+
+.input-group input[type="email"],
+.password-wrapper input {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+}
+
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper button {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.security-note {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+}
+
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    margin-bottom: 1.5rem;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-dark);
+}
+
+.forgot-link {
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.btn-submit {
+    width: 100%;
+    padding: 0.85rem;
+    background-color: var(--blue-dark);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-submit:hover {
+    background-color: var(--blue-accent);
+}
+
+.info-box {
+    margin-top: 1.2rem;
+    background-color: #f1f5f9;
+    border-left: 3px solid var(--blue-dark);
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Campo selector de Rol */
+.select-rol {
+    width: 100%;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.select-rol:focus {
+    outline: none;
+    border-color: var(--blue-accent);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* --- ADAPTACIÓN A CELULAR (RESPONSIVO) --- */
+@media (max-width: 768px) {
+    .login-card {
+        flex-direction: column;
+    }
+    .login-sidebar, .login-form-container {
+        width: 100%;
+    }
+    .login-sidebar {
+        padding: 1.5rem;
+    }
+    .login-form-container {
+        padding: 1.5rem;
+    }
+}

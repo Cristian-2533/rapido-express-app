@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapido Express - Iniciar Sesión</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+
+    <div class="login-card">
+        <!-- Lateral Azul Izquierdo -->
+        <div class="login-sidebar">
+            <div class="brand-info">
+                <h1>Rapido Express</h1>
+                <p class="subtitle">Sistema de gestión de pedidos y entregas</p>
+                
+                <div class="features-section">
+                    <p class="section-label">CON ESTE SISTEMA PUEDE</p>
+                    <ul>
+                        <li><i class="fa-solid fa-circle-dot"></i> Registrar pedidos en un solo lugar</li>
+                        <li><i class="fa-solid fa-circle-dot"></i> Asignar repartidores disponibles</li>
+                        <li><i class="fa-solid fa-circle-dot"></i> Seguir el estado de cada entrega</li>
+                        <li><i class="fa-solid fa-circle-dot"></i> Generar recibos y reportes</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <span>Versión 1.0 | Soporte: 604 555 0199</span>
+            </div>
+        </div>
+
+        <!-- Formulario Blanco Derecho -->
+        <div class="login-form-container">
+            <h2>Iniciar sesión</h2>
+            <p class="form-instruction">Ingrese con las credenciales asignadas por el administrador.</p>
+
+            <form id="formLogin">
+                <div class="input-group">
+                    <label for="correo">CORREO ELECTRÓNICO *</label>
+                    <input type="email" id="correo" value="operaciones@rapidoexpress.com" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">CONTRASEÑA *</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="password" value="12345678" required>
+                        <button type="button" id="btnTogglePassword">Mostrar</button>
+                    </div>
+                    <span class="security-note">Las contraseñas se almacenan cifradas con bcrypt (PRF1).</span>
+                </div>
+
+                <div class="form-options">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="remember">
+                        <span>Mantener la sesión activa</span>
+                    </label>
+                    <a href="#" class="forgot-link">Olvidé mi contraseña</a>
+                </div>
+
+                <button type="submit" class="btn-submit">Ingresar al sistema</button>
+            </form>
+
+            <div class="input-group">
+             <label for="rol">SELECCIONAR *</label>
+            <select id="rol" class="select-rol" required>
+             <option value="administrador">Administrador</option>
+            <option value="repartidor">Repartidor</option>
+            <option value="cliente">Cliente</option>
+            </select>
+            </div>
+        </div>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>
