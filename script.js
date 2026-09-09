@@ -1,4 +1,6 @@
-const API_URL = window.location.origin;
+const API_URL = ["5500", "5501"].includes(window.location.port)
+    ? "http://127.0.0.1:8000"
+    : window.location.origin;
 const usuario = JSON.parse(sessionStorage.getItem("usuario") || "null");
 
 function headers() {
