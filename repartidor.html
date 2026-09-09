@@ -3,91 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rápido Express - Panel de Repartidor</title>
-    <link href="https://googleapis.com" rel="stylesheet">
-    <link rel="stylesheet" href="https://cloudflare.com">
-    <link rel="stylesheet" href="style.css?v=2">
+    <title>Rápido Express - Domiciliario</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="header">
-        <div class="brand">
-            <i class="fa-solid fa-truck-fast"></i>
-            <h1>Rápido Express - Repartidores</h1>
-        </div>
-        <div class="header-actions">
-            <span class="connection-status" style="background: rgba(40, 167, 69, 0.2); color: #28a745;">
-                <i class="fa-solid fa-route"></i> En Ruta
-            </span>
-            <a class="btn-logout" id="btnLogout" href="login.html">
-                <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
-            </a>
-        </div>
-    </header>
-
-    <div class="grid-container">
-        <!-- Panel Izquierdo: Buscador y Filtros Avanzados -->
-        <div class="glass-panel">
-            <h2 class="section-title"><i class="fa-solid fa-filter"></i> Filtrar Envíos</h2>
-            <form id="formFiltrosRepartidor">
-                <div class="form-group">
-                    <label>Buscar por Dirección o ID</label>
-                    <input type="text" id="buscarPedido" class="form-control" placeholder="Ej: Calle 10 o ID...">
-                </div>
-                
-                <div class="form-group">
-                    <label>Filtrar por Estado</label>
-                    <select id="filtroEstado" class="form-control">
-                        <option value="todos">Todos los pedidos asignados</option>
-                        <option value="pendiente">Pendientes de Recogida</option>
-                        <option value="ruta">En Ruta de Entrega</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Método de Pago requerido</label>
-                    <select id="filtroPago" class="form-control">
-                        <option value="todos">Cualquier método</option>
-                        <option value="Efectivo">Efectivo (Cobrar en sitio)</option>
-                        <option value="Transferencia">Transferencia (Prepagado)</option>
-                    </select>
-                </div>
-                
-                <button type="button" id="btnAplicarFiltros" class="btn btn-primary">
-                    <i class="fa-solid fa-sliders"></i> Aplicar Filtros
-                </button>
-            </form>
-        </div>
-
-        <!-- Panel Derecho: Lista de Pedidos Asignados con acciones -->
-        <div class="glass-panel">
-            <h2 class="section-title"><i class="fa-solid fa-route"></i> Mi Hoja de Ruta</h2>
-            
-            <div id="contenedorPedidosRepartidor" class="orders-grid">
-                <!-- Ejemplo de tarjeta de pedido interactiva para el repartidor -->
-                <div class="order-card" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-weight: bold; color: #fff;">Pedido #10452</span>
-                        <span style="background: #ffc107; color: #212529; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">En Ruta</span>
-                    </div>
-                    <p style="margin: 5px 0; font-size: 14px;"><i class="fa-solid fa-location-dot" style="color: #e44d26; width: 20px;"></i> <strong>Recoger:</strong> Calle 10 # 45-20</p>
-                    <p style="margin: 5px 0; font-size: 14px;"><i class="fa-solid fa-flag" style="color: #007bff; width: 20px;"></i> <strong>Entregar:</strong> Carrera 43A # 30-15</p>
-                    <p style="margin: 5px 0; font-size: 14px;"><i class="fa-solid fa-money-bill-wave" style="color: #28a745; width: 20px;"></i> <strong>Cobro:</strong> $8,500 (Efectivo)</p>
-                    
-                    <!-- Botonera de acciones del repartidor -->
-                    <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <button class="btn" style="background: #28a745; color: white; flex: 1; padding: 8px; font-size: 14px;">
-                            <i class="fa-solid fa-check"></i> Entregado
-                        </button>
-                        <button class="btn" style="background: #dc3545; color: white; flex: 1; padding: 8px; font-size: 14px;">
-                            <i class="fa-solid fa-xmark"></i> Cancelar
-                        </button>
-                    </div>
-                </div>
-                
-            </div>
-        </div>
-    </div>
-
-    <script src="script.js?v=3" defer></script>
+<header class="header">
+    <div class="brand"><i class="fa-solid fa-truck-fast"></i><h1>Rápido Express - Mis domicilios</h1></div>
+    <div class="header-actions"><span id="nombreUsuario"></span><a class="btn-logout" id="btnLogout" href="login.html">Cerrar sesión</a></div>
+</header>
+<main class="grid-container single-panel">
+    <section class="glass-panel">
+        <h2 class="section-title"><i class="fa-solid fa-route"></i> Domicilios asignados</h2>
+        <p class="help-text">Aquí se muestran únicamente los servicios asignados a su cuenta, con todos los datos necesarios para recoger y entregar.</p>
+        <div id="contenedorPedidosRepartidor" class="orders-grid"></div>
+    </section>
+</main>
+<script src="script.js" defer></script>
 </body>
 </html>

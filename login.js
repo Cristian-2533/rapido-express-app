@@ -1,37 +1,39 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = window.location.origin;
 
 document.addEventListener("DOMContentLoaded", () => {
-    const btnToggle = document.getElementById("btnTogglePassword");
-    const inputPassword = document.getElementById("password");
-    const formLogin = document.getElementById("formLogin");
-
-    // 1. Mostrar u ocultar la contraseña
-    if (btnToggle && inputPassword) {
-        btnToggle.addEventListener("click", () => {
-            if (inputPassword.type === "password") {
-                inputPassword.type = "text";
-                btnToggle.textContent = "Ocultar";
-            } else {
-                inputPassword.type = "password";
-                btnToggle.textContent = "Mostrar";
-            }
+    const toggle = document.getElementById("btnTogglePassword");
+    const password = document.getElementById("password");
+    const form = document.getElementById("formLogin");
+    if (toggle && password) {
+        toggle.addEventListener("click", () => {
+            password.type = password.type === "password" ? "text" : "password";
+            toggle.textContent = password.type === "password" ? "Mostrar" : "Ocultar";
         });
     }
-
-    // 2. Redirección según el rol seleccionado al presionar "Ingresar"
-    if (formLogin) {
-        formLogin.addEventListener("submit", (e) => {
-            e.preventDefault();
-            
-            const rolSeleccionado = document.getElementById("rol").value;
-
-            if (rolSeleccionado === "administrador") {
-                window.location.href = "dashboard.html?v=2";   // Panel general / Administrador
-            } else if (rolSeleccionado === "repartidor") {
-                window.location.href = "repartidor.html"; // Vista de Repartidor
-            } else if (rolSeleccionado === "cliente") {
-                window.location.href = "cliente.html";    // Vista de Cliente
-            }
-        });
-    }
+    form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = form.querySelector("button[type=submit]");
+        button.disabled = true;
+        try {
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    correo: document.getElementById("correo").value.trim(),
+                    password: password.value,
+                    rol: document.getElementById("rol").value
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || "No se pudo iniciar sesión.");
+            sessionStorage.setItem("usuario", JSON.stringify(data.usuario));
+            const destino = data.usuario.rol === "administrador"
+                ? "dashboard.html" : data.usuario.rol === "repartidor" ? "repartidor.html" : "cliente.html";
+            window.location.href = destino;
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            button.disabled = false;
+        }
+    });
 });
