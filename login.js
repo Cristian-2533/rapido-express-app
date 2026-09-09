@@ -1,93 +1,72 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = window.location.origin;
 
 document.addEventListener("DOMContentLoaded", () => {
-    const btnToggle = document.getElementById("btnTogglePassword");
-    const inputPassword = document.getElementById("password");
-    const formLogin = document.getElementById("formLogin");
-    const formRegistro = document.getElementById("formRegistro");
+    const toggle = document.getElementById("btnTogglePassword");
+    const password = document.getElementById("password");
+    const loginForm = document.getElementById("formLogin");
+    const registerForm = document.getElementById("formRegistro");
+    const loginView = document.getElementById("vistaLogin");
+    const registerView = document.getElementById("vistaRegistro");
 
-    const vistaLogin = document.getElementById("vistaLogin");
-    const vistaRegistro = document.getElementById("vistaRegistro");
-    const linkMostrarRegistro = document.getElementById("linkMostrarRegistro");
-    const linkMostrarLogin = document.getElementById("linkMostrarLogin");
-
-    // 1. Mostrar u ocultar la contraseña
-    if (btnToggle && inputPassword) {
-        btnToggle.addEventListener("click", () => {
-            if (inputPassword.type === "password") {
-                inputPassword.type = "text";
-                btnToggle.textContent = "Ocultar";
-            } else {
-                inputPassword.type = "password";
-                btnToggle.textContent = "Mostrar";
-            }
-        });
-    }
-
-    // 2. Alternar entre Vista Login y Vista Registro
-    if (linkMostrarRegistro && linkMostrarLogin) {
-        linkMostrarRegistro.addEventListener("click", (e) => {
-            e.preventDefault();
-            vistaLogin.style.display = "none";
-            vistaRegistro.style.display = "block";
-        });
-
-        linkMostrarLogin.addEventListener("click", (e) => {
-            e.preventDefault();
-            vistaRegistro.style.display = "none";
-            vistaLogin.style.display = "block";
-        });
-    }
-
-    // 3. Redirección según el rol en Login
-    if (formLogin) {
-        formLogin.addEventListener("submit", (e) => {
-            e.preventDefault();
-            
-            const rolSeleccionado = document.getElementById("rol").value;
-
-            if (rolSeleccionado === "administrador") {
-                window.location.href = "dashboard.html?v=2";   // Panel general / Administrador
-            } else if (rolSeleccionado === "repartidor") {
-                window.location.href = "repartidor.html";
-            } else if (rolSeleccionado === "cliente") {
-                window.location.href = "cliente.html";
-            }
-        });
-    }
-
-    // 4. Registrar un nuevo cliente en el backend FastAPI
-    if (formRegistro) {
-        formRegistro.addEventListener("submit", async (e) => {
-            e.preventDefault();
-
-            const nuevoCliente = {
-                nombre: document.getElementById("regNombre").value,
-                telefono: document.getElementById("regTelefono").value,
-                correo: document.getElementById("regCorreo").value
-            };
-
-            try {
-                const res = await fetch(`${API_URL}/clientes/`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(nuevoCliente)
-                });
-
-                const data = await res.json();
-
-                if (res.ok) {
-                    alert("¡Registro exitoso! Ahora puedes ingresar.");
-                    formRegistro.reset();
-                    vistaRegistro.style.display = "none";
-                    vistaLogin.style.display = "block";
-                } else {
-                    alert("⚠️ Error al registrar: " + JSON.stringify(data));
-                }
-            } catch (error) {
-                console.error("Error de conexión:", error);
-                alert("No se pudo conectar con el servidor para registrar el usuario.");
-            }
-        });
-    }
+    toggle?.addEventListener("click", () => {
+        password.type = password.type === "password" ? "text" : "password";
+        toggle.textContent = password.type === "password" ? "Mostrar" : "Ocultar";
+    });
+    document.getElementById("linkMostrarRegistro")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        loginView.style.display = "none";
+        registerView.style.display = "block";
+    });
+    document.getElementById("linkMostrarLogin")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        registerView.style.display = "none";
+        loginView.style.display = "block";
+    });
+    loginForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = loginForm.querySelector("button[type=submit]");
+        button.disabled = true;
+        try {
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    correo: document.getElementById("correo").value.trim(),
+                    password: password.value,
+                    rol: document.getElementById("rol").value
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || "No se pudo iniciar sesión.");
+            sessionStorage.setItem("usuario", JSON.stringify(data.usuario));
+            window.location.href = data.usuario.rol === "administrador"
+                ? "dashboard.html" : data.usuario.rol === "repartidor" ? "repartidor.html" : "cliente.html";
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            button.disabled = false;
+        }
+    });
+    registerForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+            const response = await fetch(`${API_URL}/clientes/`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    nombre: document.getElementById("regNombre").value.trim(),
+                    telefono: document.getElementById("regTelefono").value.trim(),
+                    correo: document.getElementById("regCorreo").value.trim()
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || data.error || "No se pudo registrar.");
+            alert("Registro exitoso. El administrador debe activar sus credenciales.");
+            registerForm.reset();
+            registerView.style.display = "none";
+            loginView.style.display = "block";
+        } catch (error) {
+            alert(error.message);
+        }
+    });
 });
