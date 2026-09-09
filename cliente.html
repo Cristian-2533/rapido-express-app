@@ -1,11 +1,83 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Rápido Express - Panel de Cliente</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
-    
+    <header class="header">
+        <div class="brand">
+            <i class="fa-solid fa-truck-fast"></i>
+            <h1>Rápido Express - Clientes</h1>
+        </div>
+        <div class="header-actions">
+            <span class="connection-status">
+                <i class="fa-solid fa-circle"></i> Portal Activo
+            </span>
+            <a class="btn-logout" id="btnLogout" href="login.html">
+                <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
+            </a>
+        </div>
+    </header>
+
+    <div class="grid-container">
+        <!-- Panel Izquierdo: Gestión de Pedidos -->
+        <div class="glass-panel">
+            <h2 class="section-title"><i class="fa-solid fa-magnifying-glass"></i> Consultar y Gestionar Pedido</h2>
+            <form id="formConsultaPedido">
+                <div class="form-group">
+                    <label>Número de Guía / ID Pedido</label>
+                    <input type="number" id="idPedido" class="form-control" placeholder="Ej: 10452" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-bottom: 15px;">
+                    <i class="fa-solid fa-search"></i> Buscar Pedido
+                </button>
+            </form>
+
+            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+
+            <h2 class="section-title"><i class="fa-solid fa-pen-to-square"></i> Actualizar Estado</h2>
+            <form id="formActualizarEstado">
+                <div class="form-group">
+                    <label>Nuevo Estado del Pedido</label>
+                    <select id="nuevoEstado" class="form-control" required>
+                        <option value="" disabled selected>Seleccione un estado</option>
+                        <option value="En espera">En espera</option>
+                        <option value="Cancelado por el cliente">Cancelado por el cliente</option>
+                        <option value="Recibido con conformidad">Recibido con conformidad</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar Cambios
+                </button>
+            </form>
+        </div>
+
+        <!-- Panel Derecho: Estado Actual y Comprobante -->
+        <div class="glass-panel">
+            <h2 class="section-title"><i class="fa-solid fa-receipt"></i> Información del Envío</h2>
+            
+            <!-- Contenedor dinámico donde JavaScript mostrará los datos -->
+            <div id="resultadoConsulta" class="orders-grid">
+                <p style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">
+                    Ingrese un número de guía a la izquierda para ver los detalles.
+                </p>
+            </div>
+
+            <!-- Botón para generar comprobante, oculto por defecto hasta que busquen un pedido -->
+            <div id="wrapperComprobante" style="margin-top: 20px; text-align: center; display: none;">
+                <button id="btnComprobante" class="btn" style="background: #28a745; color: white; width: 100%;">
+                    <i class="fa-solid fa-file-pdf"></i> Generar Comprobante (PDF)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Puedes usar el mismo archivo script.js o crear uno nuevo exclusivo para clientes -->
+    <script src="script.js?v=3" defer></script>
 </body>
 </html>
