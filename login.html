@@ -35,42 +35,77 @@
 
         <!-- Formulario Blanco Derecho -->
         <div class="login-form-container">
-            <h2>Iniciar sesión</h2>
-            <p class="form-instruction">Ingrese con las credenciales asignadas por el administrador.</p>
+            <!-- VISTA DE LOGIN -->
+            <div id="vistaLogin">
+                <h2>Iniciar sesión</h2>
+                <p class="form-instruction">Ingrese con las credenciales asignadas por el administrador.</p>
 
-            <form id="formLogin">
-                <div class="input-group">
-                    <label for="correo">CORREO ELECTRÓNICO *</label>
-                    <input type="email" id="correo" value="operaciones@rapidoexpress.com" required>
-                </div>
-
-                <div class="input-group">
-                    <label for="password">CONTRASEÑA *</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="password" value="12345678" required>
-                        <button type="button" id="btnTogglePassword">Mostrar</button>
+                <form id="formLogin">
+                    <div class="input-group">
+                        <label for="correo">CORREO ELECTRÓNICO *</label>
+                        <input type="email" id="correo" value="operaciones@rapidoexpress.com" required>
                     </div>
-                    <span class="security-note">Las contraseñas se almacenan cifradas con bcrypt (PRF1).</span>
+
+                    <div class="input-group">
+                        <label for="password">CONTRASEÑA *</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="password" value="12345678" required>
+                            <button type="button" id="btnTogglePassword">Mostrar</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="rol">SELECCIONAR ROL *</label>
+                        <select id="rol" class="select-rol" required>
+                            <option value="administrador">Administrador</option>
+                            <option value="repartidor">Repartidor</option>
+                            <option value="cliente">Cliente</option>
+                        </select>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="remember">
+                            <span>Mantener la sesión activa</span>
+                        </label>
+                        <a href="#" class="forgot-link">Olvidé mi contraseña</a>
+                    </div>
+
+                    <button type="submit" class="btn-submit">Ingresar al sistema</button>
+                </form>
+
+                <div class="register-prompt">
+                    <p>¿No tienes una cuenta? <a href="#" id="linkMostrarRegistro">Regístrate aquí</a></p>
                 </div>
+            </div>
 
-                <div class="form-options">
-                    <label class="checkbox-container">
-                        <input type="checkbox" id="remember">
-                        <span>Mantener la sesión activa</span>
-                    </label>
-                    <a href="#" class="forgot-link">Olvidé mi contraseña</a>
+            <!-- VISTA DE REGISTRO (Oculta por defecto) -->
+            <div id="vistaRegistro" style="display: none;">
+                <h2>Crear Cuenta</h2>
+                <p class="form-instruction">Regístrate como nuevo cliente en Rápido Express.</p>
+
+                <form id="formRegistro">
+                    <div class="input-group">
+                        <label for="regNombre">NOMBRE COMPLETO *</label>
+                        <input type="text" id="regNombre" placeholder="Ej: Juan Pérez" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="regTelefono">TELÉFONO *</label>
+                        <input type="tel" id="regTelefono" placeholder="Ej: 3001234567" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="regCorreo">CORREO ELECTRÓNICO *</label>
+                        <input type="email" id="regCorreo" placeholder="correo@ejemplo.com" required>
+                    </div>
+
+                    <button type="submit" class="btn-submit">Registrarse</button>
+                </form>
+
+                <div class="register-prompt">
+                    <p>¿Ya tienes cuenta? <a href="#" id="linkMostrarLogin">Volver al inicio de sesión</a></p>
                 </div>
-
-                <button type="submit" class="btn-submit">Ingresar al sistema</button>
-            </form>
-
-            <div class="input-group">
-             <label for="rol">SELECCIONAR *</label>
-            <select id="rol" class="select-rol" required>
-             <option value="administrador">Administrador</option>
-            <option value="repartidor">Repartidor</option>
-            <option value="cliente">Cliente</option>
-            </select>
             </div>
         </div>
     </div>
