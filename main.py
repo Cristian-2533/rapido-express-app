@@ -290,6 +290,25 @@ def obtener_repartidores(actual: dict = Depends(usuario_actual)):
     return obtener_repartidores_activos(actual)
 
 
+@app.get("/repartidores/me")
+def obtener_mi_repartidor(actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "repartidor")
+    with conectar_db() as db:
+        driver = db.execute(
+            """
+            SELECT r.id_repartidor, r.id_usuario, r.telefono, r.disponible, r.zona,
+                   u.nombre, u.correo
+            FROM repartidores r
+            JOIN usuarios u ON u.id_usuario = r.id_usuario
+            WHERE r.id_usuario = ? AND r.disponible = 1 AND u.activo = 1
+            """,
+            (actual["id_usuario"],),
+        ).fetchone()
+    if not driver:
+        raise HTTPException(status_code=404, detail="No hay un perfil activo de domiciliario.")
+    return {"repartidor": fila_dict(driver)}
+
+
 @app.post("/repartidores/")
 def crear_repartidor(repartidor: Repartidor, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador")

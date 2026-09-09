@@ -91,9 +91,8 @@ async function iniciarAdmin() {
 async function iniciarRepartidor() {
     if (!protegerVista("repartidor")) return;
     try {
-        const data = await api("/repartidores/activos");
-        const own = data.repartidores.find((driver) => driver.id_usuario === usuario.id_usuario);
-        if (!own) throw new Error("No hay un perfil activo de domiciliario para este usuario.");
+        const data = await api("/repartidores/me");
+        const own = data.repartidor;
         const assigned = await api(`/repartidores/${own.id_repartidor}/pedidos`);
         const container = document.getElementById("contenedorPedidosRepartidor");
         container.innerHTML = assigned.pedidos.length ? assigned.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div><div class="order-actions"><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="En camino">En camino</button><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="Entregado">Entregado</button></div></article>`).join("") : "<p>No tiene domicilios asignados.</p>";
