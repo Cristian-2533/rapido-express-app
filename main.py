@@ -203,8 +203,9 @@ def login(datos: LoginRequest):
 
 
 @app.post("/clientes/")
-def crear_cliente(cliente: Cliente, usuario: dict = Depends(usuario_actual)):
-    exigir_rol(usuario, "administrador")
+def crear_cliente(cliente: Cliente, x_rol: Optional[str] = Header(default=None)):
+    if x_rol and x_rol != "administrador":
+        raise HTTPException(status_code=403, detail="No tiene permisos para registrar clientes.")
     with conectar_db() as db:
         cursor = db.execute(
             "INSERT INTO clientes (nombre, telefono, correo) VALUES (?, ?, ?)",

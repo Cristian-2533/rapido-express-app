@@ -233,3 +233,20 @@ body {
         padding: 1.5rem;
     }
 }
+
+.register-prompt {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.register-prompt a {
+    color: var(--blue-accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.register-prompt a:hover {
+    text-decoration: underline;
+}
