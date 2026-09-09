@@ -2,6 +2,18 @@ const API_URL = ["5500", "5501"].includes(window.location.port)
     ? "http://127.0.0.1:8000"
     : window.location.origin;
 
+async function readResponse(response) {
+    const text = await response.text();
+    if (!text) {
+        throw new Error(`La API no devolvió respuesta (HTTP ${response.status}). Verifica que FastAPI esté ejecutándose en ${API_URL}.`);
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        throw new Error(`La API devolvió una respuesta inválida (HTTP ${response.status}).`);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const toggle = document.getElementById("btnTogglePassword");
     const password = document.getElementById("password");
@@ -38,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     rol: document.getElementById("rol").value
                 })
             });
-            const data = await response.json();
+            const data = await readResponse(response);
             if (!response.ok) throw new Error(data.detail || "No se pudo iniciar sesión.");
             sessionStorage.setItem("usuario", JSON.stringify(data.usuario));
             window.location.href = data.usuario.rol === "administrador"
@@ -61,7 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     correo: document.getElementById("regCorreo").value.trim()
                 })
             });
-            const data = await response.json();
+            const data = await readResponse(response);
             if (!response.ok) throw new Error(data.detail || data.error || "No se pudo registrar.");
             alert("Registro exitoso. El administrador debe activar sus credenciales.");
             registerForm.reset();
