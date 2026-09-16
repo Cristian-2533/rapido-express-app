@@ -1,8 +1,11 @@
 const API_URL = window.location.origin;
 const usuario = JSON.parse(sessionStorage.getItem("usuario") || "null");
+const token = sessionStorage.getItem("token") || "";
 
 function headers() {
-    return { "Content-Type": "application/json", "X-Rol": usuario?.rol || "", "X-Usuario-Id": usuario?.id_usuario || "" };
+    const base = { "Content-Type": "application/json" };
+    if (token) base.Authorization = `Bearer ${token}`;
+    return base;
 }
 function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
@@ -18,10 +21,11 @@ async function api(path, options = {}) {
 }
 function cerrarSesion() {
     sessionStorage.removeItem("usuario");
+    sessionStorage.removeItem("token");
     window.location.href = "login.html";
 }
 function protegerVista(rol) {
-    if (!usuario || usuario.rol !== rol) { window.location.replace("login.html"); return false; }
+    if (!usuario || !token || usuario.rol !== rol) { window.location.replace("login.html"); return false; }
     document.getElementById("nombreUsuario")?.append(` ${usuario.nombre}`);
     document.getElementById("btnLogout")?.addEventListener("click", (event) => { event.preventDefault(); cerrarSesion(); });
     return true;

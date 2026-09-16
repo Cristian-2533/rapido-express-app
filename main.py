@@ -1,9 +1,11 @@
 from datetime import datetime
 from pathlib import Path
+import base64
 import hashlib
 import hmac
 import os
 import sqlite3
+import time
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -14,7 +16,10 @@ from pydantic import BaseModel, Field
 
 
 BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
 DATABASE_PATH = Path(os.getenv("RAPIDO_EXPRESS_DB", BASE_DIR / "rapido_express.db"))
+SECRET_KEY = os.getenv("RAPIDO_EXPRESS_SECRET", "cambia-esta-clave-en-produccion").encode()
+TOKEN_TTL_SECONDS = 8 * 60 * 60
 app = FastAPI(title="Rápido Express API", version="2.0")
 app.add_middleware(
     CORSMiddleware,
@@ -158,13 +163,32 @@ class AsignarRepartidor(BaseModel):
     id_repartidor: int
 
 
-def usuario_actual(
-    x_rol: Optional[str] = Header(default=None),
-    x_usuario_id: Optional[int] = Header(default=None),
-) -> dict:
-    if not x_rol:
+def generar_token(id_usuario: int, rol: str) -> str:
+    expira = int(time.time()) + TOKEN_TTL_SECONDS
+    payload = f"{id_usuario}:{rol}:{expira}"
+    firma = hmac.new(SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(payload.encode()).decode() + "." + firma
+
+
+def verificar_token(token: str) -> dict:
+    try:
+        payload_b64, firma = token.split(".", 1)
+        payload = base64.urlsafe_b64decode(payload_b64.encode()).decode()
+        firma_esperada = hmac.new(SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(firma, firma_esperada):
+            raise ValueError("Firma inválida")
+        id_usuario_str, rol, expira_str = payload.split(":", 2)
+        if int(expira_str) < int(time.time()):
+            raise ValueError("Token expirado")
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=401, detail="Sesión inválida o expirada.")
+    return {"id_usuario": int(id_usuario_str), "rol": rol}
+
+
+def usuario_actual(authorization: Optional[str] = Header(default=None)) -> dict:
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Debe iniciar sesión.")
-    return {"rol": x_rol, "id_usuario": x_usuario_id}
+    return verificar_token(authorization.removeprefix("Bearer ").strip())
 
 
 def exigir_rol(usuario: dict, *roles: str) -> None:
@@ -178,7 +202,7 @@ def fila_dict(row: Optional[sqlite3.Row]) -> Optional[dict]:
 
 @app.get("/")
 def inicio():
-    return FileResponse(BASE_DIR / "login.html")
+    return FileResponse(STATIC_DIR / "login.html")
 
 
 @app.post("/auth/login")
@@ -193,19 +217,20 @@ def login(datos: LoginRequest):
     if not usuario or not hmac.compare_digest(usuario["password_hash"], password_hash):
         raise HTTPException(status_code=401, detail="Correo, contraseña o rol inválidos.")
     return {
+        "token": generar_token(usuario["id_usuario"], usuario["rol"]),
         "usuario": {
             "id_usuario": usuario["id_usuario"],
             "nombre": usuario["nombre"],
             "correo": usuario["correo"],
             "rol": usuario["rol"],
-        }
+        },
     }
 
 
 @app.post("/clientes/")
-def crear_cliente(cliente: Cliente, x_rol: Optional[str] = Header(default=None)):
-    if x_rol and x_rol != "administrador":
-        raise HTTPException(status_code=403, detail="No tiene permisos para registrar clientes.")
+def crear_cliente(cliente: Cliente, authorization: Optional[str] = Header(default=None)):
+    if authorization:
+        exigir_rol(usuario_actual(authorization), "administrador")
     with conectar_db() as db:
         cursor = db.execute(
             "INSERT INTO clientes (nombre, telefono, correo) VALUES (?, ?, ?)",
@@ -347,7 +372,7 @@ def pedidos_del_repartidor(id_repartidor: int, actual: dict = Depends(usuario_ac
         driver = db.execute(
             "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (id_repartidor,)
         ).fetchone()
-        if not driver or (actual["id_usuario"] and driver["id_usuario"] != actual["id_usuario"]):
+        if not driver or driver["id_usuario"] != actual["id_usuario"]:
             raise HTTPException(status_code=403, detail="No puede consultar pedidos de otro repartidor.")
         pedidos = pedido_query(db, " WHERE p.id_repartidor = ?", (id_repartidor,))
     return {"total_pedidos": len(pedidos), "pedidos": pedidos}
@@ -406,4 +431,4 @@ def actualizar_estado_pedido(
     return {"mensaje": "Estado actualizado correctamente.", "nuevo_estado": datos.nuevo_estado}
 
 
-app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="frontend")
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")

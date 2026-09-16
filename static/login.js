@@ -39,6 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.detail || "No se pudo iniciar sesión.");
             sessionStorage.setItem("usuario", JSON.stringify(data.usuario));
+            sessionStorage.setItem("token", data.token);
             window.location.href = data.usuario.rol === "administrador"
                 ? "dashboard.html" : data.usuario.rol === "repartidor" ? "repartidor.html" : "cliente.html";
         } catch (error) {
