@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -20,6 +20,7 @@ STATIC_DIR = BASE_DIR / "static"
 DATABASE_PATH = Path(os.getenv("RAPIDO_EXPRESS_DB", BASE_DIR / "rapido_express.db"))
 SECRET_KEY = os.getenv("RAPIDO_EXPRESS_SECRET", "cambia-esta-clave-en-produccion").encode()
 TOKEN_TTL_SECONDS = 8 * 60 * 60
+ESTADOS_PEDIDO = ["Pendiente", "Asignado", "En camino", "Entregado", "Cancelado"]
 app = FastAPI(title="Rápido Express API", version="2.0")
 app.add_middleware(
     CORSMiddleware,
@@ -151,12 +152,33 @@ class Pedido(BaseModel):
 class ActualizarEstado(BaseModel):
     nuevo_estado: str = Field(min_length=2)
 
+    @field_validator("nuevo_estado")
+    @classmethod
+    def estado_valido(cls, value: str) -> str:
+        if value not in ESTADOS_PEDIDO:
+            raise ValueError(f"Estado inválido. Use uno de: {', '.join(ESTADOS_PEDIDO)}.")
+        return value
+
+
+class ActualizarPedido(BaseModel):
+    direccion_recogida: str = Field(min_length=3)
+    direccion_entrega: str = Field(min_length=3)
+    valor_servicio: float = Field(ge=0)
+    metodo_pago: str = Field(min_length=2)
+    tiempo_espera_min: Optional[int] = Field(default=None, ge=0)
+    tiempo_recogida_min: Optional[int] = Field(default=None, ge=0)
+    observaciones: str = ""
+
 
 class Repartidor(BaseModel):
     id_usuario: int
     telefono: str = Field(min_length=7)
     disponible: bool = True
     zona: str = ""
+
+
+class ActualizarDisponibilidad(BaseModel):
+    disponible: bool
 
 
 class AsignarRepartidor(BaseModel):
@@ -247,6 +269,33 @@ def obtener_clientes(actual: dict = Depends(usuario_actual)):
     return {"total_clientes": len(clientes), "clientes": clientes}
 
 
+@app.put("/clientes/{id_cliente}")
+def editar_cliente(id_cliente: int, cliente: Cliente, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        cursor = db.execute(
+            "UPDATE clientes SET nombre = ?, telefono = ?, correo = ? WHERE id_cliente = ?",
+            (cliente.nombre, cliente.telefono, cliente.correo, id_cliente),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="El cliente no existe.")
+    return {"mensaje": "Cliente actualizado correctamente."}
+
+
+@app.delete("/clientes/{id_cliente}")
+def eliminar_cliente(id_cliente: int, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        if not db.execute("SELECT 1 FROM clientes WHERE id_cliente = ?", (id_cliente,)).fetchone():
+            raise HTTPException(status_code=404, detail="El cliente no existe.")
+        if db.execute("SELECT 1 FROM pedidos WHERE id_cliente = ?", (id_cliente,)).fetchone():
+            raise HTTPException(
+                status_code=400, detail="No se puede eliminar un cliente con domicilios registrados."
+            )
+        db.execute("DELETE FROM clientes WHERE id_cliente = ?", (id_cliente,))
+    return {"mensaje": "Cliente eliminado correctamente."}
+
+
 def pedido_query(db: sqlite3.Connection, where: str = "", params: tuple = ()) -> list[dict]:
     rows = db.execute(
         """
@@ -288,11 +337,39 @@ def crear_pedido(pedido: Pedido, actual: dict = Depends(usuario_actual)):
 
 
 @app.get("/pedidos/")
-def obtener_pedidos(actual: dict = Depends(usuario_actual)):
+def obtener_pedidos(estado: Optional[str] = None, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    if estado and estado not in ESTADOS_PEDIDO:
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Use uno de: {', '.join(ESTADOS_PEDIDO)}.")
+    with conectar_db() as db:
+        pedidos = pedido_query(db, " WHERE p.estado = ?", (estado,)) if estado else pedido_query(db)
+    return {"total_pedidos": len(pedidos), "pedidos": pedidos}
+
+
+@app.put("/pedidos/{id_pedido}")
+def editar_pedido(id_pedido: int, datos: ActualizarPedido, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador")
     with conectar_db() as db:
-        pedidos = pedido_query(db)
-    return {"total_pedidos": len(pedidos), "pedidos": pedidos}
+        pedido = db.execute("SELECT estado FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone()
+        if not pedido:
+            raise HTTPException(status_code=404, detail="El domicilio no existe.")
+        if pedido["estado"] in ("Entregado", "Cancelado"):
+            raise HTTPException(
+                status_code=400, detail="No se puede editar un domicilio entregado o cancelado."
+            )
+        db.execute(
+            """
+            UPDATE pedidos SET direccion_recogida = ?, direccion_entrega = ?, valor_servicio = ?,
+                   metodo_pago = ?, tiempo_espera_min = ?, tiempo_recogida_min = ?, observaciones = ?
+            WHERE id_pedido = ?
+            """,
+            (
+                datos.direccion_recogida, datos.direccion_entrega, datos.valor_servicio,
+                datos.metodo_pago, datos.tiempo_espera_min, datos.tiempo_recogida_min,
+                datos.observaciones, id_pedido,
+            ),
+        )
+    return {"mensaje": "Domicilio actualizado correctamente."}
 
 
 @app.get("/repartidores/activos")
@@ -313,6 +390,36 @@ def obtener_repartidores_activos(actual: dict = Depends(usuario_actual)):
 @app.get("/repartidores/")
 def obtener_repartidores(actual: dict = Depends(usuario_actual)):
     return obtener_repartidores_activos(actual)
+
+
+@app.get("/repartidores/todos")
+def obtener_todos_repartidores(actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        rows = db.execute(
+            """
+            SELECT r.id_repartidor, r.id_usuario, r.telefono, r.disponible, r.zona,
+                   u.nombre, u.correo
+            FROM repartidores r JOIN usuarios u ON u.id_usuario = r.id_usuario
+            ORDER BY u.nombre
+            """
+        ).fetchall()
+    return {"total_repartidores": len(rows), "repartidores": [fila_dict(row) for row in rows]}
+
+
+@app.put("/repartidores/{id_repartidor}/disponibilidad")
+def actualizar_disponibilidad(
+    id_repartidor: int, datos: ActualizarDisponibilidad, actual: dict = Depends(usuario_actual)
+):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        cursor = db.execute(
+            "UPDATE repartidores SET disponible = ? WHERE id_repartidor = ?",
+            (int(datos.disponible), id_repartidor),
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="El repartidor no existe.")
+    return {"mensaje": "Disponibilidad actualizada correctamente.", "disponible": datos.disponible}
 
 
 @app.post("/repartidores/")
@@ -429,6 +536,30 @@ def actualizar_estado_pedido(
                 raise HTTPException(status_code=403, detail="Solo puede actualizar domicilios asignados.")
         db.execute("UPDATE pedidos SET estado = ? WHERE id_pedido = ?", (datos.nuevo_estado, id_pedido))
     return {"mensaje": "Estado actualizado correctamente.", "nuevo_estado": datos.nuevo_estado}
+
+
+@app.get("/estadisticas")
+def obtener_estadisticas(actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        pedidos_por_estado = {estado: 0 for estado in ESTADOS_PEDIDO}
+        pedidos_por_estado.update(
+            dict(db.execute("SELECT estado, COUNT(*) FROM pedidos GROUP BY estado").fetchall())
+        )
+        total_repartidores = db.execute("SELECT COUNT(*) FROM repartidores").fetchone()[0]
+        repartidores_activos = db.execute(
+            """
+            SELECT COUNT(*) FROM repartidores r JOIN usuarios u ON u.id_usuario = r.id_usuario
+            WHERE r.disponible = 1 AND u.activo = 1
+            """
+        ).fetchone()[0]
+        total_clientes = db.execute("SELECT COUNT(*) FROM clientes").fetchone()[0]
+    return {
+        "pedidos_por_estado": pedidos_por_estado,
+        "total_repartidores": total_repartidores,
+        "repartidores_activos": repartidores_activos,
+        "total_clientes": total_clientes,
+    }
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")

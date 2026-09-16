@@ -30,6 +30,19 @@ function protegerVista(rol) {
     document.getElementById("btnLogout")?.addEventListener("click", (event) => { event.preventDefault(); cerrarSesion(); });
     return true;
 }
+function badgeClaseEstado(estado) {
+    return { "Pendiente": "badge-pendiente", "Asignado": "badge-asignado", "En camino": "badge-en-camino",
+        "Entregado": "badge-entregado", "Cancelado": "badge-cancelado" }[estado] || "";
+}
+function abrirModal(titulo, html) {
+    document.getElementById("modalTitulo").textContent = titulo;
+    document.getElementById("modalCuerpo").innerHTML = html;
+    document.getElementById("modalOverlay").classList.remove("hidden");
+}
+function cerrarModal() {
+    document.getElementById("modalOverlay").classList.add("hidden");
+    document.getElementById("modalCuerpo").innerHTML = "";
+}
 
 async function cargarClientes() {
     const data = await api("/clientes/");
@@ -46,18 +59,79 @@ function detallePedido(pedido) {
         <p><strong>Observaciones:</strong> ${escapeHtml(pedido.observaciones) || "Sin observaciones"}</p>`;
 }
 
-async function cargarAdmin() {
-    const [pedidos, drivers] = await Promise.all([api("/pedidos/"), api("/repartidores/activos")]);
-    const driverOptions = drivers.repartidores.map((driver) =>
+async function cargarEstadisticas() {
+    const data = await api("/estadisticas");
+    const items = [
+        ["Pendientes", data.pedidos_por_estado["Pendiente"]],
+        ["Asignados", data.pedidos_por_estado["Asignado"]],
+        ["En camino", data.pedidos_por_estado["En camino"]],
+        ["Entregados", data.pedidos_por_estado["Entregado"]],
+        ["Cancelados", data.pedidos_por_estado["Cancelado"]],
+        ["Domiciliarios activos", `${data.repartidores_activos}/${data.total_repartidores}`],
+        ["Clientes", data.total_clientes],
+    ];
+    document.getElementById("contenedorEstadisticas").innerHTML = items.map(([label, value]) =>
+        `<div class="stat-card"><div class="stat-value">${value}</div><div class="stat-label">${escapeHtml(label)}</div></div>`).join("");
+}
+
+async function cargarRepartidoresAdmin() {
+    const data = await api("/repartidores/todos");
+    document.getElementById("contenedorRepartidores").innerHTML = data.repartidores.length
+        ? data.repartidores.map((driver) => `<div class="order-card"><strong>${escapeHtml(driver.nombre)}</strong><p>${escapeHtml(driver.telefono)} · ${escapeHtml(driver.zona || "Sin zona")}</p>
+            <div class="order-actions"><button class="btn-action ${driver.disponible ? "btn-toggle-on" : "btn-toggle-off"} btn-toggle-disponible" data-id="${driver.id_repartidor}" data-disponible="${driver.disponible ? 1 : 0}">${driver.disponible ? "Disponible" : "No disponible"}</button></div></div>`).join("")
+        : "<p>No hay domiciliarios registrados.</p>";
+    document.querySelectorAll(".btn-toggle-disponible").forEach((button) => button.addEventListener("click", async () => {
+        try {
+            await api(`/repartidores/${button.dataset.id}/disponibilidad`, { method: "PUT", body: JSON.stringify({ disponible: button.dataset.disponible !== "1" }) });
+            await cargarAdmin();
+        } catch (error) { alert(error.message); }
+    }));
+    return data.repartidores.filter((driver) => driver.disponible);
+}
+
+function abrirFormularioEditarPedido(pedido) {
+    abrirModal(`Editar domicilio #${pedido.id_pedido}`, `
+        <form id="formEditarPedido">
+            <div class="form-group"><label>Dirección exacta de recogida</label><input id="editDirRecogida" class="form-control" value="${escapeHtml(pedido.direccion_recogida)}" required></div>
+            <div class="form-group"><label>Dirección exacta de entrega</label><input id="editDirEntrega" class="form-control" value="${escapeHtml(pedido.direccion_entrega)}" required></div>
+            <div class="form-group"><label>Valor total del servicio</label><input type="number" min="0" id="editValorServicio" class="form-control" value="${pedido.valor_servicio}" required></div>
+            <div class="form-group"><label>Método de pago</label><select id="editMetodoPago" class="form-control"><option ${pedido.metodo_pago === "Efectivo" ? "selected" : ""}>Efectivo</option><option ${pedido.metodo_pago === "Transferencia" ? "selected" : ""}>Transferencia</option></select></div>
+            <div class="form-group"><label>Espera estimada (minutos)</label><input type="number" min="0" id="editTiempoEspera" class="form-control" value="${pedido.tiempo_espera_min ?? ""}"></div>
+            <div class="form-group"><label>Tiempo para recoger (minutos)</label><input type="number" min="0" id="editTiempoRecogida" class="form-control" value="${pedido.tiempo_recogida_min ?? ""}"></div>
+            <div class="form-group"><label>Observaciones</label><textarea id="editObservaciones" class="form-control">${escapeHtml(pedido.observaciones)}</textarea></div>
+            <button class="btn btn-primary" type="submit">Guardar cambios</button>
+        </form>
+    `);
+    document.getElementById("formEditarPedido").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const value = (id) => document.getElementById(id).value;
+        try {
+            await api(`/pedidos/${pedido.id_pedido}`, { method: "PUT", body: JSON.stringify({
+                direccion_recogida: value("editDirRecogida").trim(), direccion_entrega: value("editDirEntrega").trim(),
+                valor_servicio: Number(value("editValorServicio")), metodo_pago: value("editMetodoPago"),
+                tiempo_espera_min: value("editTiempoEspera") ? Number(value("editTiempoEspera")) : null,
+                tiempo_recogida_min: value("editTiempoRecogida") ? Number(value("editTiempoRecogida")) : null,
+                observaciones: value("editObservaciones").trim(),
+            })});
+            cerrarModal(); await cargarAdmin(); alert("Domicilio actualizado.");
+        } catch (error) { alert(error.message); }
+    });
+}
+
+async function cargarPedidosAdmin(driversActivos) {
+    const filtro = document.getElementById("filtroEstado")?.value || "";
+    const pedidos = await api(`/pedidos/${filtro ? `?estado=${encodeURIComponent(filtro)}` : ""}`);
+    const driverOptions = driversActivos.map((driver) =>
         `<option value="${driver.id_repartidor}">${escapeHtml(driver.nombre)} - ${escapeHtml(driver.zona || "Sin zona")}</option>`).join("");
-    document.getElementById("contenedorRepartidores").innerHTML = drivers.repartidores.length
-        ? drivers.repartidores.map((driver) => `<div class="order-card"><strong>${escapeHtml(driver.nombre)}</strong><p>${escapeHtml(driver.telefono)} · ${escapeHtml(driver.zona || "Sin zona")}</p><span class="badge badge-entregado">Activo</span></div>`).join("")
-        : "<p>No hay domiciliarios activos.</p>";
     document.getElementById("contenedorPedidos").innerHTML = pedidos.pedidos.length
-        ? pedidos.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div>
-            <div class="form-group"><label>Asignar domiciliario</label><select class="form-control selector-driver" data-id="${pedido.id_pedido}" ${pedido.estado === "Cancelado" ? "disabled" : ""}><option value="">Seleccione...</option>${driverOptions}</select></div>
-            <div class="order-actions"><button class="btn-action btn-camino btn-asignar" data-id="${pedido.id_pedido}">Asignar</button><button class="btn-action btn-cancelar" data-id="${pedido.id_pedido}" ${["Cancelado", "Entregado"].includes(pedido.estado) ? "disabled" : ""}>Cancelar</button></div></article>`).join("")
-        : "<p>No hay domicilios registrados.</p>";
+        ? pedidos.pedidos.map((pedido) => { const bloqueado = ["Cancelado", "Entregado"].includes(pedido.estado); return `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(pedido.estado)}">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div>
+            <div class="form-group"><label>Asignar domiciliario</label><select class="form-control selector-driver" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}><option value="">Seleccione...</option>${driverOptions}</select></div>
+            <div class="order-actions">
+                <button class="btn-action btn-camino btn-asignar" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Asignar</button>
+                <button class="btn-action btn-editar btn-editar-pedido" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Editar</button>
+                <button class="btn-action btn-cancelar" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Cancelar</button>
+            </div></article>`; }).join("")
+        : "<p>No hay domicilios con ese filtro.</p>";
     document.querySelectorAll(".btn-asignar").forEach((button) => button.addEventListener("click", async () => {
         const select = document.querySelector(`.selector-driver[data-id="${button.dataset.id}"]`);
         if (!select.value) return alert("Seleccione un domiciliario.");
@@ -69,11 +143,61 @@ async function cargarAdmin() {
         try { await api(`/pedidos/${button.dataset.id}`, { method: "DELETE" }); await cargarAdmin(); }
         catch (error) { alert(error.message); }
     }));
+    document.querySelectorAll(".btn-editar-pedido").forEach((button) => button.addEventListener("click", () => {
+        const pedido = pedidos.pedidos.find((p) => p.id_pedido === Number(button.dataset.id));
+        abrirFormularioEditarPedido(pedido);
+    }));
+}
+
+async function cargarAdmin() {
+    const [driversActivos] = await Promise.all([cargarRepartidoresAdmin(), cargarEstadisticas()]);
+    await cargarPedidosAdmin(driversActivos);
+}
+
+function abrirFormularioEditarCliente(cliente) {
+    abrirModal("Editar cliente", `
+        <form id="formEditarCliente">
+            <div class="form-group"><label>Nombre</label><input id="editNombreCliente" class="form-control" value="${escapeHtml(cliente.nombre)}" required></div>
+            <div class="form-group"><label>Teléfono</label><input id="editTelefonoCliente" class="form-control" value="${escapeHtml(cliente.telefono)}" required></div>
+            <div class="form-group"><label>Correo</label><input type="email" id="editCorreoCliente" class="form-control" value="${escapeHtml(cliente.correo)}" required></div>
+            <button class="btn btn-primary" type="submit">Guardar cambios</button>
+        </form>
+    `);
+    document.getElementById("formEditarCliente").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const value = (id) => document.getElementById(id).value;
+        try {
+            await api(`/clientes/${cliente.id_cliente}`, { method: "PUT", body: JSON.stringify({
+                nombre: value("editNombreCliente").trim(), telefono: value("editTelefonoCliente").trim(), correo: value("editCorreoCliente").trim(),
+            })});
+            cerrarModal(); await cargarClientesAdmin(); await cargarClientes(); alert("Cliente actualizado.");
+        } catch (error) { alert(error.message); }
+    });
+}
+
+async function cargarClientesAdmin() {
+    const data = await api("/clientes/");
+    document.getElementById("contenedorClientes").innerHTML = data.clientes.length
+        ? data.clientes.map((cliente) => `<div class="order-card"><strong>${escapeHtml(cliente.nombre)}</strong><p>${escapeHtml(cliente.telefono)} · ${escapeHtml(cliente.correo)}</p>
+            <div class="order-actions"><button class="btn-action btn-editar btn-editar-cliente" data-id="${cliente.id_cliente}">Editar</button><button class="btn-action btn-cancelar btn-eliminar-cliente" data-id="${cliente.id_cliente}">Eliminar</button></div></div>`).join("")
+        : "<p>No hay clientes registrados.</p>";
+    document.querySelectorAll(".btn-editar-cliente").forEach((button) => button.addEventListener("click", () => {
+        const cliente = data.clientes.find((c) => c.id_cliente === Number(button.dataset.id));
+        abrirFormularioEditarCliente(cliente);
+    }));
+    document.querySelectorAll(".btn-eliminar-cliente").forEach((button) => button.addEventListener("click", async () => {
+        if (!confirm("¿Eliminar este cliente?")) return;
+        try { await api(`/clientes/${button.dataset.id}`, { method: "DELETE" }); await cargarClientesAdmin(); await cargarClientes(); }
+        catch (error) { alert(error.message); }
+    }));
 }
 
 async function iniciarAdmin() {
     if (!protegerVista("administrador")) return;
-    try { await cargarClientes(); await cargarAdmin(); } catch (error) { alert(error.message); }
+    try { await cargarClientes(); await cargarAdmin(); await cargarClientesAdmin(); } catch (error) { alert(error.message); }
+    document.getElementById("filtroEstado")?.addEventListener("change", () => cargarAdmin().catch((error) => alert(error.message)));
+    document.getElementById("btnCerrarModal")?.addEventListener("click", cerrarModal);
+    document.getElementById("modalOverlay")?.addEventListener("click", (event) => { if (event.target.id === "modalOverlay") cerrarModal(); });
     document.getElementById("formPedido")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const value = (id) => document.getElementById(id).value;
@@ -98,7 +222,7 @@ async function iniciarRepartidor() {
         if (!own) throw new Error("No hay un perfil activo de domiciliario para este usuario.");
         const assigned = await api(`/repartidores/${own.id_repartidor}/pedidos`);
         const container = document.getElementById("contenedorPedidosRepartidor");
-        container.innerHTML = assigned.pedidos.length ? assigned.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div><div class="order-actions"><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="En camino">En camino</button><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="Entregado">Entregado</button></div></article>`).join("") : "<p>No tiene domicilios asignados.</p>";
+        container.innerHTML = assigned.pedidos.length ? assigned.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(pedido.estado)}">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div><div class="order-actions"><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="En camino">En camino</button><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="Entregado">Entregado</button></div></article>`).join("") : "<p>No tiene domicilios asignados.</p>";
         container.querySelectorAll(".btn-estado").forEach((button) => button.addEventListener("click", async () => {
             try { await api(`/pedidos/${button.dataset.id}/estado`, { method: "PUT", body: JSON.stringify({ nuevo_estado: button.dataset.estado }) }); await iniciarRepartidor(); }
             catch (error) { alert(error.message); }
@@ -112,7 +236,7 @@ async function iniciarCliente() {
         event.preventDefault();
         try {
             const data = await api(`/pedidos/${Number(document.getElementById("idPedido").value)}`);
-            document.getElementById("resultadoConsulta").innerHTML = `<article class="order-card"><div class="order-header"><strong>Domicilio #${data.pedido.id_pedido}</strong><span class="badge">${escapeHtml(data.pedido.estado)}</span></div><div class="order-info">${detallePedido(data.pedido)}</div></article>`;
+            document.getElementById("resultadoConsulta").innerHTML = `<article class="order-card"><div class="order-header"><strong>Domicilio #${data.pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(data.pedido.estado)}">${escapeHtml(data.pedido.estado)}</span></div><div class="order-info">${detallePedido(data.pedido)}</div></article>`;
         } catch (error) { alert(error.message); }
     });
 }

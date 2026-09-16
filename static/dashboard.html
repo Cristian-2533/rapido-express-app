@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rápido Express - Administración</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#144e95">
+    <link rel="icon" href="icons/favicon.ico">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="pwa.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
@@ -29,12 +34,41 @@
         </form>
     </section>
     <section class="glass-panel">
-        <h2 class="section-title"><i class="fa-solid fa-users"></i> Domiciliarios activos</h2>
+        <h2 class="section-title"><i class="fa-solid fa-chart-simple"></i> Resumen</h2>
+        <div id="contenedorEstadisticas" class="stats-grid"></div>
+
+        <h2 class="section-title"><i class="fa-solid fa-users"></i> Domiciliarios</h2>
         <div id="contenedorRepartidores" class="orders-grid"></div>
+
         <h2 class="section-title section-spaced"><i class="fa-solid fa-list-check"></i> Domicilios registrados</h2>
+        <div class="filter-bar">
+            <label for="filtroEstado">Filtrar por estado</label>
+            <select id="filtroEstado" class="form-control">
+                <option value="">Todos</option>
+                <option>Pendiente</option>
+                <option>Asignado</option>
+                <option>En camino</option>
+                <option>Entregado</option>
+                <option>Cancelado</option>
+            </select>
+        </div>
         <div id="contenedorPedidos" class="orders-grid"></div>
     </section>
 </main>
+<section class="glass-panel wide-panel">
+    <h2 class="section-title"><i class="fa-solid fa-address-book"></i> Clientes registrados</h2>
+    <div id="contenedorClientes" class="orders-grid"></div>
+</section>
+
+<div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="modalTitulo">Editar</h3>
+            <button class="modal-close" id="btnCerrarModal" type="button">&times;</button>
+        </div>
+        <div id="modalCuerpo"></div>
+    </div>
+</div>
 <script src="script.js" defer></script>
 </body>
 </html>
