@@ -114,6 +114,7 @@ a { color: inherit; }
     text-decoration: none;
     font-size: 0.88rem;
     font-weight: 600;
+    cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -128,16 +129,6 @@ a { color: inherit; }
     color: #fff;
 }
 
-.nav-link.active {
-    background: var(--accent-soft);
-    color: #fff;
-    background: rgba(255, 255, 255, 0.12);
-}
-
-.nav-link.active i {
-    color: var(--accent);
-    filter: brightness(1.6) saturate(1.3);
-}
 
 .sidebar-footer {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -185,8 +176,37 @@ a { color: inherit; }
     color: var(--ink-900);
 }
 
-/* Checkbox hack: colapsar sidebar en móvil sin tocar el JS */
-.sidebar-toggle-checkbox { display: none; }
+/* Checkbox/radio hack: navegación por pestañas y colapso de sidebar sin JS extra */
+.sidebar-toggle-checkbox,
+.vista-radio { display: none; }
+
+.vista-panel { display: none; }
+
+#vistaRadioRegistrar:checked ~ .app-shell #vista-registrar,
+#vistaRadioResumen:checked ~ .app-shell #vista-resumen,
+#vistaRadioDomiciliarios:checked ~ .app-shell #vista-domiciliarios,
+#vistaRadioDomicilios:checked ~ .app-shell #vista-domicilios,
+#vistaRadioClientes:checked ~ .app-shell #vista-clientes {
+    display: block;
+}
+
+#vistaRadioRegistrar:checked ~ .app-shell label[for="vistaRadioRegistrar"],
+#vistaRadioResumen:checked ~ .app-shell label[for="vistaRadioResumen"],
+#vistaRadioDomiciliarios:checked ~ .app-shell label[for="vistaRadioDomiciliarios"],
+#vistaRadioDomicilios:checked ~ .app-shell label[for="vistaRadioDomicilios"],
+#vistaRadioClientes:checked ~ .app-shell label[for="vistaRadioClientes"] {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+#vistaRadioRegistrar:checked ~ .app-shell label[for="vistaRadioRegistrar"] i,
+#vistaRadioResumen:checked ~ .app-shell label[for="vistaRadioResumen"] i,
+#vistaRadioDomiciliarios:checked ~ .app-shell label[for="vistaRadioDomiciliarios"] i,
+#vistaRadioDomicilios:checked ~ .app-shell label[for="vistaRadioDomicilios"] i,
+#vistaRadioClientes:checked ~ .app-shell label[for="vistaRadioClientes"] i {
+    color: var(--accent);
+    filter: brightness(1.6) saturate(1.3);
+}
 .btn-menu-toggle {
     display: none;
     align-items: center;
@@ -555,16 +575,6 @@ textarea.form-control {
     box-shadow: 0 12px 24px -12px var(--success);
 }
 
-.wide-panel {
-    max-width: 1200px;
-    margin: 1.5rem auto 0;
-}
-
-.app-shell .wide-panel {
-    max-width: none;
-    margin: 1.5rem 0 0;
-}
-
 /* ============ Estadísticas ============ */
 .stats-grid {
     display: grid;
@@ -695,6 +705,31 @@ textarea.form-control {
 .modal-close:hover {
     background: var(--danger-soft);
     color: var(--danger);
+}
+
+/* ============ Notificación toast ============ */
+.toast-notificacion {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    max-width: 340px;
+    background: var(--ink-900);
+    color: #fff;
+    padding: 0.9rem 1.1rem;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-left: 4px solid var(--accent);
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 100;
+}
+
+.toast-notificacion.visible {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 /* ============ Responsivo ============ */

@@ -11,19 +11,24 @@
     <script src="pwa.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body class="role-admin">
 <input type="checkbox" id="sidebarToggle" class="sidebar-toggle-checkbox">
+<input type="radio" name="vistaAdmin" id="vistaRadioRegistrar" class="vista-radio" checked>
+<input type="radio" name="vistaAdmin" id="vistaRadioResumen" class="vista-radio">
+<input type="radio" name="vistaAdmin" id="vistaRadioDomiciliarios" class="vista-radio">
+<input type="radio" name="vistaAdmin" id="vistaRadioDomicilios" class="vista-radio">
+<input type="radio" name="vistaAdmin" id="vistaRadioClientes" class="vista-radio">
 <div class="app-shell">
     <aside class="sidebar">
         <div class="sidebar-brand"><i class="fa-solid fa-truck-fast"></i><span>Rápido Express</span></div>
         <nav class="sidebar-nav">
-            <a href="#panel-registrar" class="nav-link active"><i class="fa-solid fa-box"></i><span>Registrar</span></a>
-            <a href="#panel-resumen" class="nav-link"><i class="fa-solid fa-chart-simple"></i><span>Resumen</span></a>
-            <a href="#panel-repartidores" class="nav-link"><i class="fa-solid fa-users"></i><span>Domiciliarios</span></a>
-            <a href="#panel-pedidos" class="nav-link"><i class="fa-solid fa-list-check"></i><span>Domicilios</span></a>
-            <a href="#panel-clientes" class="nav-link"><i class="fa-solid fa-address-book"></i><span>Clientes</span></a>
+            <label for="vistaRadioRegistrar" class="nav-link"><i class="fa-solid fa-box"></i><span>Registrar</span></label>
+            <label for="vistaRadioResumen" class="nav-link"><i class="fa-solid fa-chart-simple"></i><span>Resumen</span></label>
+            <label for="vistaRadioDomiciliarios" class="nav-link"><i class="fa-solid fa-users"></i><span>Domiciliarios</span></label>
+            <label for="vistaRadioDomicilios" class="nav-link"><i class="fa-solid fa-list-check"></i><span>Domicilios</span></label>
+            <label for="vistaRadioClientes" class="nav-link"><i class="fa-solid fa-address-book"></i><span>Clientes</span></label>
         </nav>
         <div class="sidebar-footer">
             <div class="user-chip"><i class="fa-solid fa-user-shield"></i><span id="nombreUsuario">Administrador</span></div>
@@ -37,8 +42,8 @@
             <h1>Panel de administración</h1>
         </header>
 
-        <main class="grid-container">
-            <section class="glass-panel" id="panel-registrar">
+        <main class="grid-container single-panel">
+            <section class="glass-panel vista-panel" id="vista-registrar">
                 <h2 class="section-title"><i class="fa-solid fa-box"></i> Registrar domicilio</h2>
                 <form id="formPedido">
                     <div class="form-group"><label for="idCliente">Cliente</label><select id="idCliente" class="form-control" required></select></div>
@@ -52,11 +57,14 @@
                     <button class="btn btn-primary" type="submit">Registrar domicilio</button>
                 </form>
             </section>
-            <section class="glass-panel">
-                <h2 class="section-title" id="panel-resumen"><i class="fa-solid fa-chart-simple"></i> Resumen</h2>
-                <div id="contenedorEstadisticas" class="stats-grid"></div>
 
-                <h2 class="section-title" id="panel-repartidores"><i class="fa-solid fa-users"></i> Domiciliarios</h2>
+            <section class="glass-panel vista-panel" id="vista-resumen">
+                <h2 class="section-title"><i class="fa-solid fa-chart-simple"></i> Resumen</h2>
+                <div id="contenedorEstadisticas" class="stats-grid"></div>
+            </section>
+
+            <section class="glass-panel vista-panel" id="vista-domiciliarios">
+                <h2 class="section-title"><i class="fa-solid fa-users"></i> Domiciliarios</h2>
                 <form id="formNuevoRepartidor" class="inline-form">
                     <div class="form-group"><label for="repNombre">Nombre completo</label><input id="repNombre" class="form-control" required></div>
                     <div class="form-group"><label for="repCorreo">Correo</label><input type="email" id="repCorreo" class="form-control" required></div>
@@ -66,8 +74,10 @@
                     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-user-plus"></i> Crear domiciliario</button>
                 </form>
                 <div id="contenedorRepartidores" class="orders-grid"></div>
+            </section>
 
-                <h2 class="section-title section-spaced" id="panel-pedidos"><i class="fa-solid fa-list-check"></i> Domicilios registrados</h2>
+            <section class="glass-panel vista-panel" id="vista-domicilios">
+                <h2 class="section-title"><i class="fa-solid fa-list-check"></i> Domicilios registrados</h2>
                 <div class="filter-bar">
                     <label for="filtroEstado">Filtrar por estado</label>
                     <select id="filtroEstado" class="form-control">
@@ -81,11 +91,12 @@
                 </div>
                 <div id="contenedorPedidos" class="orders-grid"></div>
             </section>
+
+            <section class="glass-panel vista-panel" id="vista-clientes">
+                <h2 class="section-title"><i class="fa-solid fa-address-book"></i> Clientes registrados</h2>
+                <div id="contenedorClientes" class="orders-grid"></div>
+            </section>
         </main>
-        <section class="glass-panel wide-panel" id="panel-clientes">
-            <h2 class="section-title"><i class="fa-solid fa-address-book"></i> Clientes registrados</h2>
-            <div id="contenedorClientes" class="orders-grid"></div>
-        </section>
     </div>
 </div>
 
@@ -98,6 +109,6 @@
         <div id="modalCuerpo"></div>
     </div>
 </div>
-<script src="script.js" defer></script>
+<script src="script.js?v=4" defer></script>
 </body>
 </html>

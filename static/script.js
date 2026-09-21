@@ -234,11 +234,38 @@ async function iniciarAdmin() {
     });
 }
 
+function pedirPermisoNotificaciones() {
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+}
+
+function notificarNuevoDomicilio(pedido) {
+    const mensaje = `Domicilio #${pedido.id_pedido}: ${pedido.direccion_recogida} → ${pedido.direccion_entrega}`;
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("Nuevo domicilio asignado", { body: mensaje, icon: "icons/icon-192.png" });
+    } else {
+        mostrarToast(`Nuevo domicilio asignado — ${mensaje}`);
+    }
+}
+
+function mostrarToast(mensaje) {
+    const toast = document.createElement("div");
+    toast.className = "toast-notificacion";
+    toast.textContent = mensaje;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("visible"));
+    setTimeout(() => {
+        toast.classList.remove("visible");
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
 let intervaloRepartidor = null;
+let pedidosConocidosRepartidor = null;
 
 async function iniciarRepartidor() {
     if (!protegerVista("repartidor")) return;
     if (!intervaloRepartidor) {
+        pedirPermisoNotificaciones();
         document.getElementById("btnActualizarPedidos")?.addEventListener("click", () => iniciarRepartidor());
         intervaloRepartidor = setInterval(iniciarRepartidor, 15000);
     }
@@ -247,6 +274,12 @@ async function iniciarRepartidor() {
         const own = data.repartidores.find((driver) => driver.id_usuario === usuario.id_usuario);
         if (!own) throw new Error("No hay un perfil activo de domiciliario para este usuario.");
         const assigned = await api(`/repartidores/${own.id_repartidor}/pedidos`);
+        if (pedidosConocidosRepartidor) {
+            assigned.pedidos
+                .filter((pedido) => !pedidosConocidosRepartidor.has(pedido.id_pedido))
+                .forEach(notificarNuevoDomicilio);
+        }
+        pedidosConocidosRepartidor = new Set(assigned.pedidos.map((pedido) => pedido.id_pedido));
         const container = document.getElementById("contenedorPedidosRepartidor");
         container.innerHTML = assigned.pedidos.length ? assigned.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(pedido.estado)}">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div><div class="order-actions"><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="En camino">En camino</button><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="Entregado">Entregado</button></div></article>`).join("") : "<p>No tiene domicilios asignados.</p>";
         container.querySelectorAll(".btn-estado").forEach((button) => button.addEventListener("click", async () => {
