@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rapido Express - Iniciar Sesión</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#144e95">
+    <meta name="theme-color" content="#0b1229">
     <link rel="icon" href="icons/favicon.ico">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <script src="pwa.js" defer></script>
@@ -17,15 +17,16 @@
     <div class="login-card">
         <div class="login-sidebar">
             <div class="brand-info">
-                <h1>Rapido Express</h1>
+                <div class="brand-mark"><i class="fa-solid fa-truck-fast"></i></div>
+                <h1>Rápido Express</h1>
                 <p class="subtitle">Sistema de gestión de pedidos y entregas</p>
                 <div class="features-section">
-                    <p class="section-label">CON ESTE SISTEMA PUEDE</p>
+                    <p class="section-label">Con este sistema puede</p>
                     <ul>
-                        <li><i class="fa-solid fa-circle-dot"></i> Registrar pedidos en un solo lugar</li>
-                        <li><i class="fa-solid fa-circle-dot"></i> Asignar repartidores disponibles</li>
-                        <li><i class="fa-solid fa-circle-dot"></i> Seguir el estado de cada entrega</li>
-                        <li><i class="fa-solid fa-circle-dot"></i> Generar recibos y reportes</li>
+                        <li><i class="fa-solid fa-box"></i> Registrar pedidos en un solo lugar</li>
+                        <li><i class="fa-solid fa-user-check"></i> Asignar repartidores disponibles</li>
+                        <li><i class="fa-solid fa-route"></i> Seguir el estado de cada entrega</li>
+                        <li><i class="fa-solid fa-file-invoice"></i> Generar recibos y reportes</li>
                     </ul>
                 </div>
             </div>
@@ -37,24 +38,31 @@
                 <p class="form-instruction">Ingrese con las credenciales asignadas por el administrador.</p>
                 <form id="formLogin">
                     <div class="input-group">
-                        <label for="correo">CORREO ELECTRÓNICO *</label>
-                        <input type="email" id="correo" value="operaciones@rapidoexpress.com" required>
+                        <label for="correo">Correo electrónico *</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-envelope"></i>
+                            <input type="email" id="correo" value="operaciones@rapidoexpress.com" required>
+                        </div>
                     </div>
                     <div class="input-group">
-                        <label for="password">CONTRASEÑA *</label>
+                        <label for="password">Contraseña *</label>
                         <div class="password-wrapper">
+                            <i class="fa-solid fa-lock"></i>
                             <input type="password" id="password" value="12345678" required>
                             <button type="button" id="btnTogglePassword">Mostrar</button>
                         </div>
                         <span class="security-note">La contraseña se valida de forma segura en el backend.</span>
                     </div>
                     <div class="input-group">
-                        <label for="rol">SELECCIONAR ROL *</label>
-                        <select id="rol" class="select-rol" required>
-                            <option value="administrador">Administrador</option>
-                            <option value="repartidor">Repartidor</option>
-                            <option value="cliente">Cliente</option>
-                        </select>
+                        <label for="rol">Seleccionar rol *</label>
+                        <div class="input-wrapper">
+                            <i class="fa-solid fa-user-tag"></i>
+                            <select id="rol" class="select-rol" required>
+                                <option value="administrador">Administrador</option>
+                                <option value="repartidor">Repartidor</option>
+                                <option value="cliente">Cliente</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-options">
                         <label class="checkbox-container"><input type="checkbox" id="remember"><span>Mantener la sesión activa</span></label>
@@ -68,9 +76,18 @@
                 <h2>Crear Cuenta</h2>
                 <p class="form-instruction">Regístrate como nuevo cliente en Rápido Express.</p>
                 <form id="formRegistro">
-                    <div class="input-group"><label for="regNombre">NOMBRE COMPLETO *</label><input type="text" id="regNombre" placeholder="Ej: Juan Pérez" required></div>
-                    <div class="input-group"><label for="regTelefono">TELÉFONO *</label><input type="tel" id="regTelefono" placeholder="Ej: 3001234567" required></div>
-                    <div class="input-group"><label for="regCorreo">CORREO ELECTRÓNICO *</label><input type="email" id="regCorreo" placeholder="correo@ejemplo.com" required></div>
+                    <div class="input-group">
+                        <label for="regNombre">Nombre completo *</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-user"></i><input type="text" id="regNombre" placeholder="Ej: Juan Pérez" required></div>
+                    </div>
+                    <div class="input-group">
+                        <label for="regTelefono">Teléfono *</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-phone"></i><input type="tel" id="regTelefono" placeholder="Ej: 3001234567" required></div>
+                    </div>
+                    <div class="input-group">
+                        <label for="regCorreo">Correo electrónico *</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-envelope"></i><input type="email" id="regCorreo" placeholder="correo@ejemplo.com" required></div>
+                    </div>
                     <button type="submit" class="btn-submit">Registrarse</button>
                 </form>
                 <div class="register-prompt"><p>¿Ya tienes cuenta? <a href="#" id="linkMostrarLogin">Volver al inicio de sesión</a></p></div>

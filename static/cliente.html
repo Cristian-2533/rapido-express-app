@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rápido Express - Panel de Cliente</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#144e95">
+    <meta name="theme-color" content="#0f172a">
     <link rel="icon" href="icons/favicon.ico">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <script src="pwa.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
-<body>
+<body class="role-cliente">
     <header class="header">
         <div class="brand">
             <i class="fa-solid fa-truck-fast"></i>
@@ -21,7 +21,7 @@
         </div>
         <div class="header-actions">
             <span class="connection-status">
-                <i class="fa-solid fa-circle"></i> Portal Activo
+                <i class="fa-solid fa-circle"></i> <span id="nombreUsuario">Portal activo</span>
             </span>
             <a class="btn-logout" id="btnLogout" href="login.html">
                 <i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión
@@ -43,7 +43,7 @@
                 </button>
             </form>
 
-            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
+            <hr class="divider">
 
             <h2 class="section-title"><i class="fa-solid fa-pen-to-square"></i> Actualizar Estado</h2>
             <form id="formActualizarEstado">
@@ -68,14 +68,14 @@
             
             <!-- Contenedor dinámico donde JavaScript mostrará los datos -->
             <div id="resultadoConsulta" class="orders-grid">
-                <p style="color: rgba(255,255,255,0.6); text-align: center; padding: 20px;">
+                <p class="empty-state">
                     Ingrese un número de guía a la izquierda para ver los detalles.
                 </p>
             </div>
 
             <!-- Botón para generar comprobante, oculto por defecto hasta que busquen un pedido -->
             <div id="wrapperComprobante" style="margin-top: 20px; text-align: center; display: none;">
-                <button id="btnComprobante" class="btn" style="background: #28a745; color: white; width: 100%;">
+                <button id="btnComprobante" class="btn btn-comprobante">
                     <i class="fa-solid fa-file-pdf"></i> Generar Comprobante (PDF)
                 </button>
             </div>
