@@ -142,6 +142,21 @@ class Cliente(BaseModel):
     correo: str
 
 
+class RegistroCliente(BaseModel):
+    nombre: str = Field(min_length=2)
+    telefono: str = Field(min_length=7)
+    correo: str
+    password: str = Field(min_length=6)
+
+
+class RegistroRepartidor(BaseModel):
+    nombre: str = Field(min_length=2)
+    telefono: str = Field(min_length=7)
+    correo: str
+    password: str = Field(min_length=6)
+    zona: str = ""
+
+
 class Pedido(BaseModel):
     id_cliente: int
     id_repartidor: Optional[int] = None
@@ -173,13 +188,6 @@ class ActualizarPedido(BaseModel):
     tiempo_espera_min: Optional[int] = Field(default=None, ge=0)
     tiempo_recogida_min: Optional[int] = Field(default=None, ge=0)
     observaciones: str = ""
-
-
-class Repartidor(BaseModel):
-    id_usuario: int
-    telefono: str = Field(min_length=7)
-    disponible: bool = True
-    zona: str = ""
 
 
 class ActualizarDisponibilidad(BaseModel):
@@ -255,15 +263,20 @@ def login(datos: LoginRequest):
 
 
 @app.post("/clientes/")
-def crear_cliente(cliente: Cliente, authorization: Optional[str] = Header(default=None)):
-    if authorization:
-        exigir_rol(usuario_actual(authorization), "administrador")
+def crear_cliente(datos: RegistroCliente):
+    password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
     with conectar_db() as db:
+        if db.execute("SELECT 1 FROM usuarios WHERE correo = ?", (datos.correo,)).fetchone():
+            raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo.")
+        id_usuario = db.execute(
+            "INSERT INTO usuarios (nombre, correo, password_hash, rol) VALUES (?, ?, ?, 'cliente')",
+            (datos.nombre, datos.correo, password_hash),
+        ).lastrowid
         cursor = db.execute(
-            "INSERT INTO clientes (nombre, telefono, correo) VALUES (?, ?, ?)",
-            (cliente.nombre, cliente.telefono, cliente.correo),
+            "INSERT INTO clientes (id_usuario, nombre, telefono, correo) VALUES (?, ?, ?, ?)",
+            (id_usuario, datos.nombre, datos.telefono, datos.correo),
         )
-        return {"mensaje": "Cliente registrado con éxito.", "id_cliente": cursor.lastrowid}
+    return {"mensaje": "Cuenta creada con éxito. Ya puedes iniciar sesión.", "id_cliente": cursor.lastrowid}
 
 
 @app.get("/clientes/")
@@ -406,6 +419,7 @@ def obtener_todos_repartidores(actual: dict = Depends(usuario_actual)):
             SELECT r.id_repartidor, r.id_usuario, r.telefono, r.disponible, r.zona,
                    u.nombre, u.correo
             FROM repartidores r JOIN usuarios u ON u.id_usuario = r.id_usuario
+            WHERE u.activo = 1
             ORDER BY u.nombre
             """
         ).fetchall()
@@ -427,17 +441,56 @@ def actualizar_disponibilidad(
     return {"mensaje": "Disponibilidad actualizada correctamente.", "disponible": datos.disponible}
 
 
+def _crear_cuenta_repartidor(db: sqlite3.Connection, datos: RegistroRepartidor) -> int:
+    if db.execute("SELECT 1 FROM usuarios WHERE correo = ?", (datos.correo,)).fetchone():
+        raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo.")
+    password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+    id_usuario = db.execute(
+        "INSERT INTO usuarios (nombre, correo, password_hash, rol) VALUES (?, ?, ?, 'repartidor')",
+        (datos.nombre, datos.correo, password_hash),
+    ).lastrowid
+    cursor = db.execute(
+        "INSERT INTO repartidores (id_usuario, telefono, disponible, zona) VALUES (?, ?, 1, ?)",
+        (id_usuario, datos.telefono, datos.zona),
+    )
+    return cursor.lastrowid
+
+
+@app.post("/repartidores/registro")
+def registrar_repartidor(datos: RegistroRepartidor):
+    with conectar_db() as db:
+        id_repartidor = _crear_cuenta_repartidor(db, datos)
+    return {"mensaje": "Cuenta creada con éxito. Ya puedes iniciar sesión.", "id_repartidor": id_repartidor}
+
+
 @app.post("/repartidores/")
-def crear_repartidor(repartidor: Repartidor, actual: dict = Depends(usuario_actual)):
+def crear_repartidor(datos: RegistroRepartidor, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador")
     with conectar_db() as db:
-        if not db.execute("SELECT 1 FROM usuarios WHERE id_usuario = ?", (repartidor.id_usuario,)).fetchone():
-            raise HTTPException(status_code=404, detail="El usuario del repartidor no existe.")
-        cursor = db.execute(
-            "INSERT INTO repartidores (id_usuario, telefono, disponible, zona) VALUES (?, ?, ?, ?)",
-            (repartidor.id_usuario, repartidor.telefono, int(repartidor.disponible), repartidor.zona),
-        )
-    return {"mensaje": "Repartidor registrado con éxito.", "id_repartidor": cursor.lastrowid}
+        id_repartidor = _crear_cuenta_repartidor(db, datos)
+    return {"mensaje": "Repartidor registrado con éxito.", "id_repartidor": id_repartidor}
+
+
+@app.delete("/repartidores/{id_repartidor}")
+def eliminar_repartidor(id_repartidor: int, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        repartidor = db.execute(
+            "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (id_repartidor,)
+        ).fetchone()
+        if not repartidor:
+            raise HTTPException(status_code=404, detail="El repartidor no existe.")
+        pendiente = db.execute(
+            "SELECT 1 FROM pedidos WHERE id_repartidor = ? AND estado NOT IN ('Entregado', 'Cancelado')",
+            (id_repartidor,),
+        ).fetchone()
+        if pendiente:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede eliminar un domiciliario con domicilios activos asignados.",
+            )
+        db.execute("UPDATE usuarios SET activo = 0 WHERE id_usuario = ?", (repartidor["id_usuario"],))
+    return {"mensaje": "Domiciliario eliminado correctamente."}
 
 
 @app.put("/pedidos/{id_pedido}/asignar-repartidor")
@@ -551,7 +604,12 @@ def obtener_estadisticas(actual: dict = Depends(usuario_actual)):
         pedidos_por_estado.update(
             dict(db.execute("SELECT estado, COUNT(*) FROM pedidos GROUP BY estado").fetchall())
         )
-        total_repartidores = db.execute("SELECT COUNT(*) FROM repartidores").fetchone()[0]
+        total_repartidores = db.execute(
+            """
+            SELECT COUNT(*) FROM repartidores r JOIN usuarios u ON u.id_usuario = r.id_usuario
+            WHERE u.activo = 1
+            """
+        ).fetchone()[0]
         repartidores_activos = db.execute(
             """
             SELECT COUNT(*) FROM repartidores r JOIN usuarios u ON u.id_usuario = r.id_usuario

@@ -34,6 +34,10 @@ document.addEventListener("DOMContentLoaded", () => {
         registerView.style.display = "none";
         loginView.style.display = "block";
     });
+    const grupoZona = document.getElementById("grupoRegZona");
+    document.querySelectorAll('input[name="regRol"]').forEach((radio) => radio.addEventListener("change", () => {
+        grupoZona.style.display = radio.value === "repartidor" ? "block" : "none";
+    }));
     loginForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const button = loginForm.querySelector("button[type=submit]");
@@ -62,19 +66,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     registerForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
+        const rolElegido = document.querySelector('input[name="regRol"]:checked').value;
+        const endpoint = rolElegido === "repartidor" ? "/repartidores/registro" : "/clientes/";
+        const payload = {
+            nombre: document.getElementById("regNombre").value.trim(),
+            telefono: document.getElementById("regTelefono").value.trim(),
+            correo: document.getElementById("regCorreo").value.trim(),
+            password: document.getElementById("regPassword").value,
+        };
+        if (rolElegido === "repartidor") payload.zona = document.getElementById("regZona").value.trim();
         try {
-            const response = await fetch(`${API_URL}/clientes/`, {
+            const response = await fetch(`${API_URL}${endpoint}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    nombre: document.getElementById("regNombre").value.trim(),
-                    telefono: document.getElementById("regTelefono").value.trim(),
-                    correo: document.getElementById("regCorreo").value.trim()
-                })
+                body: JSON.stringify(payload)
             });
             const data = await parseJsonSeguro(response);
             if (!response.ok) throw new Error(data.detail || data.error || "No se pudo registrar.");
-            alert("Registro exitoso. El administrador debe activar sus credenciales.");
+            alert("Cuenta creada con éxito. Ya puedes iniciar sesión.");
             registerForm.reset();
             registerView.style.display = "none";
             loginView.style.display = "block";

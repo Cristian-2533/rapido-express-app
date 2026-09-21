@@ -74,7 +74,11 @@
             </div>
             <div id="vistaRegistro" style="display: none;">
                 <h2>Crear Cuenta</h2>
-                <p class="form-instruction">Regístrate como nuevo cliente en Rápido Express.</p>
+                <p class="form-instruction">Elige qué tipo de cuenta quieres crear en Rápido Express.</p>
+                <div class="role-toggle">
+                    <label class="role-toggle-option"><input type="radio" name="regRol" value="cliente" checked><span>Cliente</span></label>
+                    <label class="role-toggle-option"><input type="radio" name="regRol" value="repartidor"><span>Domiciliario</span></label>
+                </div>
                 <form id="formRegistro">
                     <div class="input-group">
                         <label for="regNombre">Nombre completo *</label>
@@ -87,6 +91,14 @@
                     <div class="input-group">
                         <label for="regCorreo">Correo electrónico *</label>
                         <div class="input-wrapper"><i class="fa-solid fa-envelope"></i><input type="email" id="regCorreo" placeholder="correo@ejemplo.com" required></div>
+                    </div>
+                    <div class="input-group">
+                        <label for="regPassword">Contraseña *</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-lock"></i><input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" minlength="6" required></div>
+                    </div>
+                    <div class="input-group" id="grupoRegZona" style="display:none;">
+                        <label for="regZona">Zona de trabajo</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-map-location-dot"></i><input type="text" id="regZona" placeholder="Ej: Zona norte"></div>
                     </div>
                     <button type="submit" class="btn-submit">Registrarse</button>
                 </form>

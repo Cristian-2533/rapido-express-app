@@ -23,8 +23,11 @@
 </header>
 <main class="grid-container single-panel">
     <section class="glass-panel">
-        <h2 class="section-title"><i class="fa-solid fa-route"></i> Domicilios asignados</h2>
-        <p class="help-text">Aquí se muestran únicamente los servicios asignados a su cuenta, con todos los datos necesarios para recoger y entregar.</p>
+        <div class="section-title-row">
+            <h2 class="section-title"><i class="fa-solid fa-route"></i> Domicilios asignados</h2>
+            <button id="btnActualizarPedidos" class="btn-action btn-camino" type="button"><i class="fa-solid fa-rotate"></i> Actualizar</button>
+        </div>
+        <p class="help-text">Aquí se muestran únicamente los servicios asignados a su cuenta. Se actualiza solo cada 15 segundos, o al pulsar "Actualizar".</p>
         <div id="contenedorPedidosRepartidor" class="orders-grid"></div>
     </section>
 </main>

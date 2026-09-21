@@ -78,13 +78,21 @@ async function cargarRepartidoresAdmin() {
     const data = await api("/repartidores/todos");
     document.getElementById("contenedorRepartidores").innerHTML = data.repartidores.length
         ? data.repartidores.map((driver) => `<div class="order-card"><strong>${escapeHtml(driver.nombre)}</strong><p>${escapeHtml(driver.telefono)} · ${escapeHtml(driver.zona || "Sin zona")}</p>
-            <div class="order-actions"><button class="btn-action ${driver.disponible ? "btn-toggle-on" : "btn-toggle-off"} btn-toggle-disponible" data-id="${driver.id_repartidor}" data-disponible="${driver.disponible ? 1 : 0}">${driver.disponible ? "Disponible" : "No disponible"}</button></div></div>`).join("")
+            <div class="order-actions">
+                <button class="btn-action ${driver.disponible ? "btn-toggle-on" : "btn-toggle-off"} btn-toggle-disponible" data-id="${driver.id_repartidor}" data-disponible="${driver.disponible ? 1 : 0}">${driver.disponible ? "Disponible" : "No disponible"}</button>
+                <button class="btn-action btn-cancelar btn-eliminar-repartidor" data-id="${driver.id_repartidor}">Eliminar</button>
+            </div></div>`).join("")
         : "<p>No hay domiciliarios registrados.</p>";
     document.querySelectorAll(".btn-toggle-disponible").forEach((button) => button.addEventListener("click", async () => {
         try {
             await api(`/repartidores/${button.dataset.id}/disponibilidad`, { method: "PUT", body: JSON.stringify({ disponible: button.dataset.disponible !== "1" }) });
             await cargarAdmin();
         } catch (error) { alert(error.message); }
+    }));
+    document.querySelectorAll(".btn-eliminar-repartidor").forEach((button) => button.addEventListener("click", async () => {
+        if (!confirm("¿Eliminar este domiciliario? No podrá volver a iniciar sesión.")) return;
+        try { await api(`/repartidores/${button.dataset.id}`, { method: "DELETE" }); await cargarAdmin(); }
+        catch (error) { alert(error.message); }
     }));
     return data.repartidores.filter((driver) => driver.disponible);
 }
@@ -212,10 +220,28 @@ async function iniciarAdmin() {
             event.target.reset(); await cargarAdmin(); alert("Domicilio registrado.");
         } catch (error) { alert(error.message); }
     });
+    document.getElementById("formNuevoRepartidor")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const value = (id) => document.getElementById(id).value;
+        try {
+            await api("/repartidores/", { method: "POST", body: JSON.stringify({
+                nombre: value("repNombre").trim(), correo: value("repCorreo").trim(),
+                password: value("repPassword"), telefono: value("repTelefono").trim(),
+                zona: value("repZona").trim(),
+            })});
+            event.target.reset(); await cargarAdmin(); alert("Domiciliario creado.");
+        } catch (error) { alert(error.message); }
+    });
 }
+
+let intervaloRepartidor = null;
 
 async function iniciarRepartidor() {
     if (!protegerVista("repartidor")) return;
+    if (!intervaloRepartidor) {
+        document.getElementById("btnActualizarPedidos")?.addEventListener("click", () => iniciarRepartidor());
+        intervaloRepartidor = setInterval(iniciarRepartidor, 15000);
+    }
     try {
         const data = await api("/repartidores/activos");
         const own = data.repartidores.find((driver) => driver.id_usuario === usuario.id_usuario);

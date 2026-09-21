@@ -57,6 +57,14 @@
                 <div id="contenedorEstadisticas" class="stats-grid"></div>
 
                 <h2 class="section-title" id="panel-repartidores"><i class="fa-solid fa-users"></i> Domiciliarios</h2>
+                <form id="formNuevoRepartidor" class="inline-form">
+                    <div class="form-group"><label for="repNombre">Nombre completo</label><input id="repNombre" class="form-control" required></div>
+                    <div class="form-group"><label for="repCorreo">Correo</label><input type="email" id="repCorreo" class="form-control" required></div>
+                    <div class="form-group"><label for="repPassword">Contraseña</label><input type="password" id="repPassword" class="form-control" minlength="6" required></div>
+                    <div class="form-group"><label for="repTelefono">Teléfono</label><input id="repTelefono" class="form-control" required></div>
+                    <div class="form-group"><label for="repZona">Zona</label><input id="repZona" class="form-control" placeholder="Ej: Zona norte"></div>
+                    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-user-plus"></i> Crear domiciliario</button>
+                </form>
                 <div id="contenedorRepartidores" class="orders-grid"></div>
 
                 <h2 class="section-title section-spaced" id="panel-pedidos"><i class="fa-solid fa-list-check"></i> Domicilios registrados</h2>
