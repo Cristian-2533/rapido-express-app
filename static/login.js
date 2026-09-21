@@ -1,5 +1,17 @@
 const API_URL = window.location.origin;
 
+async function parseJsonSeguro(response) {
+    const texto = await response.text();
+    if (!texto) {
+        throw new Error(`El servidor respondió sin contenido (HTTP ${response.status}).`);
+    }
+    try {
+        return JSON.parse(texto);
+    } catch {
+        throw new Error(`Respuesta no válida del servidor (HTTP ${response.status}).`);
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const toggle = document.getElementById("btnTogglePassword");
     const password = document.getElementById("password");
@@ -36,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     rol: document.getElementById("rol").value
                 })
             });
-            const data = await response.json();
+            const data = await parseJsonSeguro(response);
             if (!response.ok) throw new Error(data.detail || "No se pudo iniciar sesión.");
             sessionStorage.setItem("usuario", JSON.stringify(data.usuario));
             sessionStorage.setItem("token", data.token);
@@ -60,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     correo: document.getElementById("regCorreo").value.trim()
                 })
             });
-            const data = await response.json();
+            const data = await parseJsonSeguro(response);
             if (!response.ok) throw new Error(data.detail || data.error || "No se pudo registrar.");
             alert("Registro exitoso. El administrador debe activar sus credenciales.");
             registerForm.reset();
