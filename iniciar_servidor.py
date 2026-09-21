@@ -10,14 +10,26 @@ prueben contra el mismo servidor y la misma base de datos.
 """
 import threading
 import time
+from pathlib import Path
 
 import uvicorn
-from pyngrok import ngrok
+from pyngrok import conf, ngrok
 
 PUERTO = 8000
 # Dominio fijo gratuito de tu cuenta ngrok (dashboard.ngrok.com > Dominios).
 # Déjalo en None si prefieres una URL aleatoria distinta cada vez.
 DOMINIO_NGROK = "shorty-prelaunch-explicit.ngrok-free.dev"
+
+# El Python de la Microsoft Store virtualiza AppData\Local y eso rompe la
+# ruta donde pyngrok espera encontrar el binario descargado. Para evitarlo,
+# guardamos el binario y la config de ngrok dentro del propio proyecto.
+BASE_DIR = Path(__file__).resolve().parent
+NGROK_DIR = BASE_DIR / ".ngrok"
+NGROK_DIR.mkdir(exist_ok=True)
+conf.set_default(conf.PyngrokConfig(
+    ngrok_path=str(NGROK_DIR / "ngrok.exe"),
+    config_path=str(NGROK_DIR / "ngrok.yml"),
+))
 
 
 def _iniciar_uvicorn() -> None:
