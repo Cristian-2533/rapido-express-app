@@ -13,6 +13,14 @@ function escapeHtml(value) {
 function dinero(value) {
     return Number(value || 0).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
 }
+function extraerMensajeError(data) {
+    if (typeof data.detail === "string") return data.detail;
+    if (Array.isArray(data.detail)) {
+        return data.detail.map((item) => item.msg || String(item)).join(" ");
+    }
+    if (typeof data.error === "string") return data.error;
+    return "La operación no pudo completarse.";
+}
 async function api(path, options = {}) {
     const response = await fetch(`${API_URL}${path}`, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
     const texto = await response.text();
@@ -21,7 +29,7 @@ async function api(path, options = {}) {
         try { data = JSON.parse(texto); }
         catch { throw new Error(`Respuesta no válida del servidor (HTTP ${response.status}).`); }
     }
-    if (!response.ok) throw new Error(data.detail || data.error || "La operación no pudo completarse.");
+    if (!response.ok) throw new Error(extraerMensajeError(data));
     return data;
 }
 function cerrarSesion() {
@@ -361,7 +369,11 @@ async function iniciarAdmin() {
         try {
             const filtro = document.getElementById("filtroEstado")?.value || "";
             const response = await fetch(`${API_URL}/pedidos/exportar${filtro ? `?estado=${encodeURIComponent(filtro)}` : ""}`, { headers: headers() });
-            if (!response.ok) throw new Error("No se pudo exportar el archivo.");
+            if (!response.ok) {
+                let data = {};
+                try { data = JSON.parse(await response.text()); } catch { /* respuesta no era JSON */ }
+                throw new Error(`No se pudo exportar el archivo (HTTP ${response.status}): ${extraerMensajeError(data)}`);
+            }
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
             const enlace = document.createElement("a");
