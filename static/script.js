@@ -300,6 +300,32 @@ async function cargarAdmin() {
     await cargarPedidosAdmin(driversActivos);
 }
 
+function filaGanancia(nombre, entregas, valorTotal, comisionRepartidor, comisionEmpresa) {
+    return `<div class="order-card"><strong>${escapeHtml(nombre)}</strong><p>${entregas} domicilio(s) entregado(s)</p>
+        <div class="ganancia-desglose">
+            <div class="ganancia-fila"><span class="ganancia-label">Total facturado</span><span class="ganancia-valor">${dinero(valorTotal)}</span></div>
+            <div class="ganancia-fila"><span class="ganancia-label">Domiciliario</span><span class="ganancia-valor verde">${dinero(comisionRepartidor)}</span></div>
+            <div class="ganancia-fila"><span class="ganancia-label">Empresa</span><span class="ganancia-valor azul">${dinero(comisionEmpresa)}</span></div>
+        </div></div>`;
+}
+
+async function cargarGanancias() {
+    const inputFecha = document.getElementById("fechaGanancias");
+    if (inputFecha && !inputFecha.value) inputFecha.value = new Date().toISOString().slice(0, 10);
+    const fecha = inputFecha?.value || new Date().toISOString().slice(0, 10);
+    const data = await api(`/estadisticas/ganancias?fecha=${encodeURIComponent(fecha)}`);
+    document.getElementById("porcentajeGanancias").textContent =
+        `Reparto: ${Math.round(data.porcentaje_repartidor * 100)}% domiciliario / ${Math.round((1 - data.porcentaje_repartidor) * 100)}% empresa`;
+    document.getElementById("contenedorGanancias").innerHTML = data.repartidores.length
+        ? data.repartidores.map((r) => filaGanancia(r.nombre, r.entregas, r.valor_total, r.comision_repartidor, r.comision_empresa)).join("")
+        : "<p>No hay domiciliarios registrados.</p>";
+    document.getElementById("totalesGanancias").innerHTML = `
+        <div class="stat-card"><div class="stat-value">${dinero(data.totales.valor_total)}</div><div class="stat-label">Total del día</div></div>
+        <div class="stat-card"><div class="stat-value">${dinero(data.totales.comision_repartidor)}</div><div class="stat-label">Comisión domiciliarios</div></div>
+        <div class="stat-card"><div class="stat-value">${dinero(data.totales.comision_empresa)}</div><div class="stat-label">Comisión empresa</div></div>
+    `;
+}
+
 function abrirFormularioEditarCliente(cliente) {
     abrirModal("Editar cliente", `
         <form id="formEditarCliente">
@@ -361,7 +387,8 @@ function alBuscar(callback) {
 
 async function iniciarAdmin() {
     if (!protegerVista("administrador")) return;
-    try { await cargarClientes(); await cargarAdmin(); await cargarClientesAdmin(); } catch (error) { alert(error.message); }
+    try { await cargarClientes(); await cargarAdmin(); await cargarClientesAdmin(); await cargarGanancias(); } catch (error) { alert(error.message); }
+    document.getElementById("fechaGanancias")?.addEventListener("change", () => cargarGanancias().catch((error) => alert(error.message)));
     document.getElementById("filtroEstado")?.addEventListener("change", () => { paginaPedidos = 0; cargarAdmin().catch((error) => alert(error.message)); });
     document.getElementById("buscarPedidos")?.addEventListener("input", () => { paginaPedidos = 0; alBuscar(cargarAdmin); });
     document.getElementById("buscarClientes")?.addEventListener("input", () => { paginaClientes = 0; alBuscar(cargarClientesAdmin); });
@@ -431,6 +458,12 @@ async function iniciarRepartidor() {
         const data = await api("/repartidores/activos");
         const own = data.repartidores.find((driver) => driver.id_usuario === usuario.id_usuario);
         if (!own) throw new Error("No hay un perfil activo de domiciliario para este usuario.");
+        const ganancias = await api(`/repartidores/${own.id_repartidor}/ganancias`);
+        const contenedorGanancias = document.getElementById("contenedorGananciasPropias");
+        if (contenedorGanancias) contenedorGanancias.innerHTML = `
+            <div class="stat-card"><div class="stat-value">${ganancias.entregas}</div><div class="stat-label">Domicilios entregados hoy</div></div>
+            <div class="stat-card"><div class="stat-value">${dinero(ganancias.comision_repartidor)}</div><div class="stat-label">Tu ganancia de hoy</div></div>
+        `;
         const assigned = await api(`/repartidores/${own.id_repartidor}/pedidos`);
         if (pedidosConocidosRepartidor) {
             assigned.pedidos

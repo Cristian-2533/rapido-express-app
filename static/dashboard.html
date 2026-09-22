@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" defer></script>
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body class="role-admin">
 <input type="checkbox" id="sidebarToggle" class="sidebar-toggle-checkbox">
@@ -21,6 +21,7 @@
 <input type="radio" name="vistaAdmin" id="vistaRadioDomiciliarios" class="vista-radio">
 <input type="radio" name="vistaAdmin" id="vistaRadioDomicilios" class="vista-radio">
 <input type="radio" name="vistaAdmin" id="vistaRadioClientes" class="vista-radio">
+<input type="radio" name="vistaAdmin" id="vistaRadioGanancias" class="vista-radio">
 <div class="app-shell">
     <aside class="sidebar">
         <div class="sidebar-brand"><i class="fa-solid fa-truck-fast"></i><span>Rápido Express</span></div>
@@ -30,6 +31,7 @@
             <label for="vistaRadioDomiciliarios" class="nav-link"><i class="fa-solid fa-users"></i><span>Domiciliarios</span></label>
             <label for="vistaRadioDomicilios" class="nav-link"><i class="fa-solid fa-list-check"></i><span>Domicilios</span></label>
             <label for="vistaRadioClientes" class="nav-link"><i class="fa-solid fa-address-book"></i><span>Clientes</span></label>
+            <label for="vistaRadioGanancias" class="nav-link"><i class="fa-solid fa-sack-dollar"></i><span>Ganancias</span></label>
         </nav>
         <div class="sidebar-footer">
             <div class="user-chip"><i class="fa-solid fa-user-shield"></i><span id="nombreUsuario">Administrador</span></div>
@@ -105,6 +107,17 @@
                 <div id="contenedorClientes" class="orders-grid"></div>
                 <div class="paginacion" id="paginacionClientes"></div>
             </section>
+
+            <section class="glass-panel vista-panel" id="vista-ganancias">
+                <h2 class="section-title"><i class="fa-solid fa-sack-dollar"></i> Ganancias por domiciliario</h2>
+                <div class="filter-bar">
+                    <label for="fechaGanancias">Fecha</label>
+                    <input type="date" id="fechaGanancias" class="form-control">
+                    <span class="paginacion-info" id="porcentajeGanancias"></span>
+                </div>
+                <div id="contenedorGanancias" class="orders-grid"></div>
+                <div id="totalesGanancias" class="stats-grid"></div>
+            </section>
         </main>
     </div>
 </div>
@@ -118,6 +131,6 @@
         <div id="modalCuerpo"></div>
     </div>
 </div>
-<script src="script.js?v=6" defer></script>
+<script src="script.js?v=7" defer></script>
 </body>
 </html>

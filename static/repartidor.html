@@ -11,7 +11,7 @@
     <script src="pwa.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body class="role-repartidor">
 <header class="header">
@@ -23,6 +23,10 @@
 </header>
 <main class="grid-container single-panel">
     <section class="glass-panel">
+        <h2 class="section-title"><i class="fa-solid fa-sack-dollar"></i> Ganancias de hoy</h2>
+        <div id="contenedorGananciasPropias" class="stats-grid"></div>
+    </section>
+    <section class="glass-panel">
         <div class="section-title-row">
             <h2 class="section-title"><i class="fa-solid fa-route"></i> Domicilios asignados</h2>
             <button id="btnActualizarPedidos" class="btn-action btn-camino" type="button"><i class="fa-solid fa-rotate"></i> Actualizar</button>
@@ -31,6 +35,6 @@
         <div id="contenedorPedidosRepartidor" class="orders-grid"></div>
     </section>
 </main>
-<script src="script.js?v=6" defer></script>
+<script src="script.js?v=7" defer></script>
 </body>
 </html>

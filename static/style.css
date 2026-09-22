@@ -186,7 +186,8 @@ a { color: inherit; }
 #vistaRadioResumen:checked ~ .app-shell #vista-resumen,
 #vistaRadioDomiciliarios:checked ~ .app-shell #vista-domiciliarios,
 #vistaRadioDomicilios:checked ~ .app-shell #vista-domicilios,
-#vistaRadioClientes:checked ~ .app-shell #vista-clientes {
+#vistaRadioClientes:checked ~ .app-shell #vista-clientes,
+#vistaRadioGanancias:checked ~ .app-shell #vista-ganancias {
     display: block;
 }
 
@@ -194,7 +195,8 @@ a { color: inherit; }
 #vistaRadioResumen:checked ~ .app-shell label[for="vistaRadioResumen"],
 #vistaRadioDomiciliarios:checked ~ .app-shell label[for="vistaRadioDomiciliarios"],
 #vistaRadioDomicilios:checked ~ .app-shell label[for="vistaRadioDomicilios"],
-#vistaRadioClientes:checked ~ .app-shell label[for="vistaRadioClientes"] {
+#vistaRadioClientes:checked ~ .app-shell label[for="vistaRadioClientes"],
+#vistaRadioGanancias:checked ~ .app-shell label[for="vistaRadioGanancias"] {
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
 }
@@ -203,7 +205,8 @@ a { color: inherit; }
 #vistaRadioResumen:checked ~ .app-shell label[for="vistaRadioResumen"] i,
 #vistaRadioDomiciliarios:checked ~ .app-shell label[for="vistaRadioDomiciliarios"] i,
 #vistaRadioDomicilios:checked ~ .app-shell label[for="vistaRadioDomicilios"] i,
-#vistaRadioClientes:checked ~ .app-shell label[for="vistaRadioClientes"] i {
+#vistaRadioClientes:checked ~ .app-shell label[for="vistaRadioClientes"] i,
+#vistaRadioGanancias:checked ~ .app-shell label[for="vistaRadioGanancias"] i {
     color: var(--accent);
     filter: brightness(1.6) saturate(1.3);
 }
@@ -763,6 +766,34 @@ textarea.form-control {
     background: var(--danger-soft);
     color: var(--danger);
 }
+
+/* ============ Ganancias ============ */
+.ganancia-desglose {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed var(--ink-200);
+}
+
+.ganancia-fila {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+}
+
+.ganancia-label {
+    color: var(--ink-500);
+}
+
+.ganancia-valor {
+    font-weight: 700;
+    color: var(--ink-900);
+}
+
+.ganancia-valor.verde { color: var(--success); }
+.ganancia-valor.azul { color: var(--info); }
 
 /* ============ Notificación toast ============ */
 .toast-notificacion {

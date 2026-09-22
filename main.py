@@ -28,6 +28,7 @@ if not os.getenv("RAPIDO_EXPRESS_SECRET"):
     )
 TOKEN_TTL_SECONDS = 8 * 60 * 60
 ESTADOS_PEDIDO = ["Pendiente", "Asignado", "En camino", "Entregado", "Cancelado"]
+PORCENTAJE_REPARTIDOR = float(os.getenv("RAPIDO_EXPRESS_COMISION_REPARTIDOR", "0.70"))
 app = FastAPI(title="Rápido Express API", version="2.0")
 app.add_middleware(
     CORSMiddleware,
@@ -260,6 +261,14 @@ def _registrar_historial(db: sqlite3.Connection, id_pedido: int, estado: str, id
         "INSERT INTO historial_pedidos (id_pedido, estado, fecha_hora, id_usuario) VALUES (?, ?, ?, ?)",
         (id_pedido, estado, datetime.now().isoformat(timespec="seconds"), id_usuario),
     )
+
+
+def _desglosar_ganancia(valor_total: float) -> dict:
+    return {
+        "valor_total": valor_total,
+        "comision_repartidor": round(valor_total * PORCENTAJE_REPARTIDOR, 2),
+        "comision_empresa": round(valor_total * (1 - PORCENTAJE_REPARTIDOR), 2),
+    }
 
 
 @app.get("/")
@@ -703,6 +712,30 @@ def pedidos_del_repartidor(id_repartidor: int, actual: dict = Depends(usuario_ac
     return {"total_pedidos": len(pedidos), "pedidos": pedidos}
 
 
+@app.get("/repartidores/{id_repartidor}/ganancias")
+def ganancias_repartidor(id_repartidor: int, fecha: Optional[str] = None, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador", "repartidor")
+    fecha = fecha or datetime.now().date().isoformat()
+    with conectar_db() as db:
+        driver = db.execute(
+            "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (id_repartidor,)
+        ).fetchone()
+        if not driver:
+            raise HTTPException(status_code=404, detail="El repartidor no existe.")
+        if actual["rol"] == "repartidor" and driver["id_usuario"] != actual["id_usuario"]:
+            raise HTTPException(status_code=403, detail="No puede consultar las ganancias de otro repartidor.")
+        fila = db.execute(
+            """
+            SELECT COUNT(*) AS entregas, COALESCE(SUM(p.valor_servicio), 0) AS valor_total
+            FROM historial_pedidos h JOIN pedidos p ON p.id_pedido = h.id_pedido
+            WHERE h.estado = 'Entregado' AND date(h.fecha_hora) = ? AND p.id_repartidor = ?
+            """,
+            (fecha, id_repartidor),
+        ).fetchone()
+    return {"fecha": fecha, "entregas": fila["entregas"], "porcentaje_repartidor": PORCENTAJE_REPARTIDOR,
+             **_desglosar_ganancia(fila["valor_total"])}
+
+
 @app.get("/pedidos/{id_pedido}")
 def obtener_pedido_por_id(id_pedido: int, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador", "repartidor", "cliente")
@@ -755,6 +788,41 @@ def actualizar_estado_pedido(
         db.execute("UPDATE pedidos SET estado = ? WHERE id_pedido = ?", (datos.nuevo_estado, id_pedido))
         _registrar_historial(db, id_pedido, datos.nuevo_estado, actual["id_usuario"])
     return {"mensaje": "Estado actualizado correctamente.", "nuevo_estado": datos.nuevo_estado}
+
+
+@app.get("/estadisticas/ganancias")
+def ganancias_generales(fecha: Optional[str] = None, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    fecha = fecha or datetime.now().date().isoformat()
+    with conectar_db() as db:
+        filas = db.execute(
+            """
+            SELECT r.id_repartidor, u.nombre,
+                   COUNT(h.id_historial) AS entregas,
+                   COALESCE(SUM(p.valor_servicio), 0) AS valor_total
+            FROM repartidores r
+            JOIN usuarios u ON u.id_usuario = r.id_usuario
+            LEFT JOIN pedidos p ON p.id_repartidor = r.id_repartidor
+            LEFT JOIN historial_pedidos h
+                ON h.id_pedido = p.id_pedido AND h.estado = 'Entregado' AND date(h.fecha_hora) = ?
+            WHERE u.activo = 1
+            GROUP BY r.id_repartidor
+            ORDER BY valor_total DESC
+            """,
+            (fecha,),
+        ).fetchall()
+    repartidores = [
+        {"id_repartidor": fila["id_repartidor"], "nombre": fila["nombre"], "entregas": fila["entregas"],
+         **_desglosar_ganancia(fila["valor_total"])}
+        for fila in filas
+    ]
+    total_general = sum(fila["valor_total"] for fila in repartidores)
+    return {
+        "fecha": fecha,
+        "porcentaje_repartidor": PORCENTAJE_REPARTIDOR,
+        "repartidores": repartidores,
+        "totales": _desglosar_ganancia(total_general),
+    }
 
 
 @app.get("/estadisticas")
