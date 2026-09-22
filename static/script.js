@@ -519,4 +519,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (document.getElementById("formPedido")) iniciarAdmin();
     if (document.getElementById("contenedorPedidosRepartidor")) iniciarRepartidor();
     if (document.getElementById("formConsultaPedido")) iniciarCliente();
+
+    const sidebarToggle = document.getElementById("sidebarToggle");
+    if (sidebarToggle) {
+        document.querySelectorAll(".sidebar-nav .nav-link").forEach((link) => {
+            link.addEventListener("click", () => { sidebarToggle.checked = false; });
+        });
+    }
 });
