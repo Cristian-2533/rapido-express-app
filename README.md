@@ -47,6 +47,20 @@ Esto levanta el backend y el túnel de ngrok juntos, e imprime la URL pública p
 
 El resto del equipo simplemente abre esa URL en el navegador e inicia sesión con cualquiera de las 3 cuentas de la tabla de arriba — no necesitan clonar nada ni instalar dependencias para *probar* la app, solo para *desarrollarla*.
 
+## 3. Despliegue permanente (sin depender de tu laptop ni de ngrok)
+
+Para tener una URL fija que funcione siempre, sin que dependa de que tu equipo esté prendido, se puede desplegar gratis en **Render** (https://render.com):
+
+1. Sube este repositorio a GitHub (si no lo has hecho ya).
+2. Crea una cuenta gratis en https://render.com e inicia sesión con GitHub.
+3. En el dashboard, click en **New +** → **Blueprint**, y selecciona este repositorio. Render detecta automáticamente el archivo `render.yaml` incluido y configura todo solo (build command, start command, y una `RAPIDO_EXPRESS_SECRET` aleatoria y segura).
+4. Click en **Apply** / **Deploy**. En unos minutos te da una URL pública tipo `https://rapido-express-api.onrender.com`.
+5. Esa URL sirve el login, los paneles y la API — igual que con ngrok, pero permanente. El `manifest.json` sigue funcionando igual para instalar la app en el celular desde esa URL.
+
+**Ten en cuenta (plan gratuito de Render):**
+- El servicio "duerme" tras ~15 minutos sin tráfico y tarda unos 30-60 segundos en despertar con la primera visita — normal en el plan gratis, no es un error.
+- El disco donde vive `rapido_express.db` se reinicia cada vez que subes código nuevo (cada redeploy vuelve a sembrar las 3 cuentas de prueba y borra los datos reales que se hayan cargado). Para un proyecto de universidad en fase de demo esto normalmente no es un problema; si más adelante necesitas que los datos sobrevivan entre despliegues, hay que agregar un disco persistente de pago o migrar a una base de datos gestionada aparte.
+
 ## Notas
 
 - `SECRET_KEY` (usada para firmar los tokens de sesión) tiene un valor por defecto en `main.py` pensado solo para desarrollo. Para un uso más serio, definila como variable de entorno `RAPIDO_EXPRESS_SECRET`.
