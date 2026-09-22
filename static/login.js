@@ -29,6 +29,10 @@ document.addEventListener("DOMContentLoaded", () => {
         loginView.style.display = "none";
         registerView.style.display = "block";
     });
+    document.getElementById("linkOlvideContrasena")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        alert("Por seguridad, las contraseñas no se recuperan por aquí. Contacta a tu administrador para que te restablezca el acceso desde el panel de administración.");
+    });
     document.getElementById("linkMostrarLogin")?.addEventListener("click", (event) => {
         event.preventDefault();
         registerView.style.display = "none";

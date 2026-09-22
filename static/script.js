@@ -15,7 +15,12 @@ function dinero(value) {
 }
 async function api(path, options = {}) {
     const response = await fetch(`${API_URL}${path}`, { ...options, headers: { ...headers(), ...(options.headers || {}) } });
-    const data = await response.json();
+    const texto = await response.text();
+    let data = {};
+    if (texto) {
+        try { data = JSON.parse(texto); }
+        catch { throw new Error(`Respuesta no válida del servidor (HTTP ${response.status}).`); }
+    }
     if (!response.ok) throw new Error(data.detail || data.error || "La operación no pudo completarse.");
     return data;
 }
@@ -43,6 +48,53 @@ function cerrarModal() {
     document.getElementById("modalOverlay").classList.add("hidden");
     document.getElementById("modalCuerpo").innerHTML = "";
 }
+function confirmarAccion(mensaje) {
+    return new Promise((resolve) => {
+        abrirModal("Confirmar acción", `
+            <p style="margin-bottom:1.25rem; color: var(--ink-700);">${escapeHtml(mensaje)}</p>
+            <div class="order-actions">
+                <button type="button" class="btn-action btn-toggle-off" id="btnConfirmarNo">Cancelar</button>
+                <button type="button" class="btn-action btn-cancelar" id="btnConfirmarSi">Sí, continuar</button>
+            </div>
+        `);
+        document.getElementById("btnConfirmarSi").addEventListener("click", () => { cerrarModal(); resolve(true); });
+        document.getElementById("btnConfirmarNo").addEventListener("click", () => { cerrarModal(); resolve(false); });
+    });
+}
+function notificar(titulo, mensaje) {
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(titulo, { body: mensaje, icon: "icons/icon-192.png" });
+    } else {
+        mostrarToast(`${titulo} — ${mensaje}`);
+    }
+}
+function mostrarToast(mensaje) {
+    const toast = document.createElement("div");
+    toast.className = "toast-notificacion";
+    toast.textContent = mensaje;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("visible"));
+    setTimeout(() => {
+        toast.classList.remove("visible");
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+function pedirPermisoNotificaciones() {
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+}
+function renderPaginacion(idContenedor, total, limite, paginaActual, onCambiar) {
+    const contenedor = document.getElementById(idContenedor);
+    if (!contenedor) return;
+    const totalPaginas = Math.max(1, Math.ceil(total / limite));
+    if (totalPaginas <= 1) { contenedor.innerHTML = ""; return; }
+    contenedor.innerHTML = `
+        <button type="button" class="btn-action btn-toggle-off" id="${idContenedor}Prev" ${paginaActual === 0 ? "disabled" : ""}>&laquo; Anterior</button>
+        <span class="paginacion-info">Página ${paginaActual + 1} de ${totalPaginas} (${total} en total)</span>
+        <button type="button" class="btn-action btn-toggle-off" id="${idContenedor}Next" ${paginaActual >= totalPaginas - 1 ? "disabled" : ""}>Siguiente &raquo;</button>
+    `;
+    document.getElementById(`${idContenedor}Prev`)?.addEventListener("click", () => onCambiar(paginaActual - 1));
+    document.getElementById(`${idContenedor}Next`)?.addEventListener("click", () => onCambiar(paginaActual + 1));
+}
 
 async function cargarClientes() {
     const data = await api("/clientes/");
@@ -59,6 +111,9 @@ function detallePedido(pedido) {
         <p><strong>Observaciones:</strong> ${escapeHtml(pedido.observaciones) || "Sin observaciones"}</p>`;
 }
 
+let graficoEstados = null;
+let estadisticasConocidas = null;
+
 async function cargarEstadisticas() {
     const data = await api("/estadisticas");
     const items = [
@@ -72,6 +127,56 @@ async function cargarEstadisticas() {
     ];
     document.getElementById("contenedorEstadisticas").innerHTML = items.map(([label, value]) =>
         `<div class="stat-card"><div class="stat-value">${value}</div><div class="stat-label">${escapeHtml(label)}</div></div>`).join("");
+
+    const canvas = document.getElementById("graficoEstados");
+    if (canvas && window.Chart) {
+        const estados = ["Pendiente", "Asignado", "En camino", "Entregado", "Cancelado"];
+        const colores = ["#d97706", "#4f46e5", "#2563eb", "#059669", "#dc2626"];
+        const valores = estados.map((estado) => data.pedidos_por_estado[estado]);
+        if (graficoEstados) {
+            graficoEstados.data.datasets[0].data = valores;
+            graficoEstados.update();
+        } else {
+            graficoEstados = new Chart(canvas, {
+                type: "bar",
+                data: { labels: estados, datasets: [{ label: "Domicilios", data: valores, backgroundColor: colores, borderRadius: 6 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                },
+            });
+        }
+    }
+
+    if (estadisticasConocidas) {
+        const nuevosClientes = data.total_clientes - estadisticasConocidas.total_clientes;
+        if (nuevosClientes > 0) {
+            notificar("Nuevo cliente registrado", `${nuevosClientes} cliente(s) nuevo(s) se registraron en el sistema.`);
+        }
+        const nuevosEntregados = data.pedidos_por_estado["Entregado"] - estadisticasConocidas.pedidos_por_estado["Entregado"];
+        if (nuevosEntregados > 0) {
+            notificar("Domicilio entregado", `${nuevosEntregados} domicilio(s) fueron marcados como Entregado.`);
+        }
+    }
+    estadisticasConocidas = data;
+}
+
+function abrirFormularioPassword(titulo, onGuardar) {
+    abrirModal(titulo, `
+        <form id="formNuevaPassword">
+            <div class="form-group"><label>Nueva contraseña</label><input type="password" id="nuevaPassword" class="form-control" minlength="6" required></div>
+            <button class="btn btn-primary" type="submit">Guardar</button>
+        </form>
+    `);
+    document.getElementById("formNuevaPassword").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+            await onGuardar(document.getElementById("nuevaPassword").value);
+            cerrarModal(); alert("Contraseña actualizada.");
+        } catch (error) { alert(error.message); }
+    });
 }
 
 async function cargarRepartidoresAdmin() {
@@ -80,6 +185,7 @@ async function cargarRepartidoresAdmin() {
         ? data.repartidores.map((driver) => `<div class="order-card"><strong>${escapeHtml(driver.nombre)}</strong><p>${escapeHtml(driver.telefono)} · ${escapeHtml(driver.zona || "Sin zona")}</p>
             <div class="order-actions">
                 <button class="btn-action ${driver.disponible ? "btn-toggle-on" : "btn-toggle-off"} btn-toggle-disponible" data-id="${driver.id_repartidor}" data-disponible="${driver.disponible ? 1 : 0}">${driver.disponible ? "Disponible" : "No disponible"}</button>
+                <button class="btn-action btn-editar btn-password-repartidor" data-id="${driver.id_repartidor}">Contraseña</button>
                 <button class="btn-action btn-cancelar btn-eliminar-repartidor" data-id="${driver.id_repartidor}">Eliminar</button>
             </div></div>`).join("")
         : "<p>No hay domiciliarios registrados.</p>";
@@ -89,8 +195,12 @@ async function cargarRepartidoresAdmin() {
             await cargarAdmin();
         } catch (error) { alert(error.message); }
     }));
+    document.querySelectorAll(".btn-password-repartidor").forEach((button) => button.addEventListener("click", () => {
+        abrirFormularioPassword("Restablecer contraseña del domiciliario", (password) =>
+            api(`/repartidores/${button.dataset.id}/password`, { method: "PUT", body: JSON.stringify({ password }) }));
+    }));
     document.querySelectorAll(".btn-eliminar-repartidor").forEach((button) => button.addEventListener("click", async () => {
-        if (!confirm("¿Eliminar este domiciliario? No podrá volver a iniciar sesión.")) return;
+        if (!(await confirmarAccion("¿Eliminar este domiciliario? No podrá volver a iniciar sesión."))) return;
         try { await api(`/repartidores/${button.dataset.id}`, { method: "DELETE" }); await cargarAdmin(); }
         catch (error) { alert(error.message); }
     }));
@@ -126,9 +236,26 @@ function abrirFormularioEditarPedido(pedido) {
     });
 }
 
+async function verHistorialPedido(idPedido) {
+    try {
+        const data = await api(`/pedidos/${idPedido}/historial`);
+        const items = data.historial.map((h) =>
+            `<li><span class="badge ${badgeClaseEstado(h.estado)}">${escapeHtml(h.estado)}</span> <span class="historial-fecha">${escapeHtml(h.fecha_hora)}</span>${h.usuario ? ` · ${escapeHtml(h.usuario)}` : ""}</li>`
+        ).join("");
+        abrirModal(`Historial del domicilio #${idPedido}`, `<ul class="historial-lista">${items || "<li>Sin historial registrado.</li>"}</ul>`);
+    } catch (error) { alert(error.message); }
+}
+
+let paginaPedidos = 0;
+const LIMITE_PEDIDOS = 9;
+
 async function cargarPedidosAdmin(driversActivos) {
     const filtro = document.getElementById("filtroEstado")?.value || "";
-    const pedidos = await api(`/pedidos/${filtro ? `?estado=${encodeURIComponent(filtro)}` : ""}`);
+    const busqueda = document.getElementById("buscarPedidos")?.value.trim() || "";
+    const parametros = new URLSearchParams({ limit: LIMITE_PEDIDOS, offset: paginaPedidos * LIMITE_PEDIDOS });
+    if (filtro) parametros.set("estado", filtro);
+    if (busqueda) parametros.set("q", busqueda);
+    const pedidos = await api(`/pedidos/?${parametros.toString()}`);
     const driverOptions = driversActivos.map((driver) =>
         `<option value="${driver.id_repartidor}">${escapeHtml(driver.nombre)} - ${escapeHtml(driver.zona || "Sin zona")}</option>`).join("");
     document.getElementById("contenedorPedidos").innerHTML = pedidos.pedidos.length
@@ -137,9 +264,11 @@ async function cargarPedidosAdmin(driversActivos) {
             <div class="order-actions">
                 <button class="btn-action btn-camino btn-asignar" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Asignar</button>
                 <button class="btn-action btn-editar btn-editar-pedido" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Editar</button>
+                <button class="btn-action btn-toggle-off btn-ver-historial" data-id="${pedido.id_pedido}">Historial</button>
                 <button class="btn-action btn-cancelar" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Cancelar</button>
             </div></article>`; }).join("")
         : "<p>No hay domicilios con ese filtro.</p>";
+    renderPaginacion("paginacionPedidos", pedidos.total_pedidos, LIMITE_PEDIDOS, paginaPedidos, (nueva) => { paginaPedidos = nueva; cargarAdmin(); });
     document.querySelectorAll(".btn-asignar").forEach((button) => button.addEventListener("click", async () => {
         const select = document.querySelector(`.selector-driver[data-id="${button.dataset.id}"]`);
         if (!select.value) return alert("Seleccione un domiciliario.");
@@ -147,7 +276,7 @@ async function cargarPedidosAdmin(driversActivos) {
         catch (error) { alert(error.message); }
     }));
     document.querySelectorAll(".btn-cancelar").forEach((button) => button.addEventListener("click", async () => {
-        if (!confirm("¿Cancelar este domicilio?")) return;
+        if (!(await confirmarAccion("¿Cancelar este domicilio?"))) return;
         try { await api(`/pedidos/${button.dataset.id}`, { method: "DELETE" }); await cargarAdmin(); }
         catch (error) { alert(error.message); }
     }));
@@ -155,6 +284,7 @@ async function cargarPedidosAdmin(driversActivos) {
         const pedido = pedidos.pedidos.find((p) => p.id_pedido === Number(button.dataset.id));
         abrirFormularioEditarPedido(pedido);
     }));
+    document.querySelectorAll(".btn-ver-historial").forEach((button) => button.addEventListener("click", () => verHistorialPedido(button.dataset.id)));
 }
 
 async function cargarAdmin() {
@@ -183,27 +313,64 @@ function abrirFormularioEditarCliente(cliente) {
     });
 }
 
+let paginaClientes = 0;
+const LIMITE_CLIENTES = 9;
+
 async function cargarClientesAdmin() {
-    const data = await api("/clientes/");
+    const busqueda = document.getElementById("buscarClientes")?.value.trim() || "";
+    const parametros = new URLSearchParams({ limit: LIMITE_CLIENTES, offset: paginaClientes * LIMITE_CLIENTES });
+    if (busqueda) parametros.set("q", busqueda);
+    const data = await api(`/clientes/?${parametros.toString()}`);
     document.getElementById("contenedorClientes").innerHTML = data.clientes.length
         ? data.clientes.map((cliente) => `<div class="order-card"><strong>${escapeHtml(cliente.nombre)}</strong><p>${escapeHtml(cliente.telefono)} · ${escapeHtml(cliente.correo)}</p>
-            <div class="order-actions"><button class="btn-action btn-editar btn-editar-cliente" data-id="${cliente.id_cliente}">Editar</button><button class="btn-action btn-cancelar btn-eliminar-cliente" data-id="${cliente.id_cliente}">Eliminar</button></div></div>`).join("")
+            <div class="order-actions">
+                <button class="btn-action btn-editar btn-editar-cliente" data-id="${cliente.id_cliente}">Editar</button>
+                <button class="btn-action btn-editar btn-password-cliente" data-id="${cliente.id_cliente}">Contraseña</button>
+                <button class="btn-action btn-cancelar btn-eliminar-cliente" data-id="${cliente.id_cliente}">Eliminar</button>
+            </div></div>`).join("")
         : "<p>No hay clientes registrados.</p>";
+    renderPaginacion("paginacionClientes", data.total_clientes, LIMITE_CLIENTES, paginaClientes, (nueva) => { paginaClientes = nueva; cargarClientesAdmin(); });
     document.querySelectorAll(".btn-editar-cliente").forEach((button) => button.addEventListener("click", () => {
         const cliente = data.clientes.find((c) => c.id_cliente === Number(button.dataset.id));
         abrirFormularioEditarCliente(cliente);
     }));
+    document.querySelectorAll(".btn-password-cliente").forEach((button) => button.addEventListener("click", () => {
+        abrirFormularioPassword("Restablecer contraseña del cliente", (password) =>
+            api(`/clientes/${button.dataset.id}/password`, { method: "PUT", body: JSON.stringify({ password }) }));
+    }));
     document.querySelectorAll(".btn-eliminar-cliente").forEach((button) => button.addEventListener("click", async () => {
-        if (!confirm("¿Eliminar este cliente?")) return;
+        if (!(await confirmarAccion("¿Eliminar este cliente?"))) return;
         try { await api(`/clientes/${button.dataset.id}`, { method: "DELETE" }); await cargarClientesAdmin(); await cargarClientes(); }
         catch (error) { alert(error.message); }
     }));
 }
 
+let debounceBusqueda = null;
+function alBuscar(callback) {
+    clearTimeout(debounceBusqueda);
+    debounceBusqueda = setTimeout(() => callback().catch((error) => alert(error.message)), 350);
+}
+
 async function iniciarAdmin() {
     if (!protegerVista("administrador")) return;
     try { await cargarClientes(); await cargarAdmin(); await cargarClientesAdmin(); } catch (error) { alert(error.message); }
-    document.getElementById("filtroEstado")?.addEventListener("change", () => cargarAdmin().catch((error) => alert(error.message)));
+    document.getElementById("filtroEstado")?.addEventListener("change", () => { paginaPedidos = 0; cargarAdmin().catch((error) => alert(error.message)); });
+    document.getElementById("buscarPedidos")?.addEventListener("input", () => { paginaPedidos = 0; alBuscar(cargarAdmin); });
+    document.getElementById("buscarClientes")?.addEventListener("input", () => { paginaClientes = 0; alBuscar(cargarClientesAdmin); });
+    document.getElementById("btnExportarCsv")?.addEventListener("click", async () => {
+        try {
+            const filtro = document.getElementById("filtroEstado")?.value || "";
+            const response = await fetch(`${API_URL}/pedidos/exportar${filtro ? `?estado=${encodeURIComponent(filtro)}` : ""}`, { headers: headers() });
+            if (!response.ok) throw new Error("No se pudo exportar el archivo.");
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const enlace = document.createElement("a");
+            enlace.href = url;
+            enlace.download = "domicilios.csv";
+            enlace.click();
+            URL.revokeObjectURL(url);
+        } catch (error) { alert(error.message); }
+    });
     document.getElementById("btnCerrarModal")?.addEventListener("click", cerrarModal);
     document.getElementById("modalOverlay")?.addEventListener("click", (event) => { if (event.target.id === "modalOverlay") cerrarModal(); });
     document.getElementById("formPedido")?.addEventListener("submit", async (event) => {
@@ -234,29 +401,8 @@ async function iniciarAdmin() {
     });
 }
 
-function pedirPermisoNotificaciones() {
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
-}
-
 function notificarNuevoDomicilio(pedido) {
-    const mensaje = `Domicilio #${pedido.id_pedido}: ${pedido.direccion_recogida} → ${pedido.direccion_entrega}`;
-    if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("Nuevo domicilio asignado", { body: mensaje, icon: "icons/icon-192.png" });
-    } else {
-        mostrarToast(`Nuevo domicilio asignado — ${mensaje}`);
-    }
-}
-
-function mostrarToast(mensaje) {
-    const toast = document.createElement("div");
-    toast.className = "toast-notificacion";
-    toast.textContent = mensaje;
-    document.body.appendChild(toast);
-    requestAnimationFrame(() => toast.classList.add("visible"));
-    setTimeout(() => {
-        toast.classList.remove("visible");
-        setTimeout(() => toast.remove(), 300);
-    }, 5000);
+    notificar("Nuevo domicilio asignado", `Domicilio #${pedido.id_pedido}: ${pedido.direccion_recogida} → ${pedido.direccion_entrega}`);
 }
 
 let intervaloRepartidor = null;
@@ -291,12 +437,36 @@ async function iniciarRepartidor() {
 
 async function iniciarCliente() {
     if (!protegerVista("cliente")) return;
+    let ultimoPedidoConsultado = null;
     document.getElementById("formConsultaPedido")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         try {
             const data = await api(`/pedidos/${Number(document.getElementById("idPedido").value)}`);
+            ultimoPedidoConsultado = data.pedido;
             document.getElementById("resultadoConsulta").innerHTML = `<article class="order-card"><div class="order-header"><strong>Domicilio #${data.pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(data.pedido.estado)}">${escapeHtml(data.pedido.estado)}</span></div><div class="order-info">${detallePedido(data.pedido)}</div></article>`;
+            document.getElementById("wrapperComprobante").style.display = "block";
         } catch (error) { alert(error.message); }
+    });
+    document.getElementById("btnComprobante")?.addEventListener("click", () => {
+        if (!ultimoPedidoConsultado || !window.jspdf) return;
+        const pedido = ultimoPedidoConsultado;
+        const doc = new window.jspdf.jsPDF();
+        doc.setFontSize(16);
+        doc.text("Rápido Express - Comprobante de domicilio", 15, 20);
+        doc.setFontSize(11);
+        const lineas = [
+            `Domicilio #${pedido.id_pedido}`,
+            `Estado: ${pedido.estado}`,
+            `Cliente: ${pedido.cliente} (${pedido.telefono_cliente})`,
+            `Recogida: ${pedido.direccion_recogida}`,
+            `Entrega: ${pedido.direccion_entrega}`,
+            `Fecha: ${pedido.fecha_hora}`,
+            `Valor del servicio: ${dinero(pedido.valor_servicio)}`,
+            `Método de pago: ${pedido.metodo_pago}`,
+            `Observaciones: ${pedido.observaciones || "Sin observaciones"}`,
+        ];
+        lineas.forEach((linea, indice) => doc.text(linea, 15, 35 + indice * 8));
+        doc.save(`comprobante-domicilio-${pedido.id_pedido}.pdf`);
     });
 }
 

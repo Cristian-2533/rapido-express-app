@@ -11,7 +11,8 @@
     <script src="pwa.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=4">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" defer></script>
+    <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body class="role-admin">
 <input type="checkbox" id="sidebarToggle" class="sidebar-toggle-checkbox">
@@ -61,6 +62,7 @@
             <section class="glass-panel vista-panel" id="vista-resumen">
                 <h2 class="section-title"><i class="fa-solid fa-chart-simple"></i> Resumen</h2>
                 <div id="contenedorEstadisticas" class="stats-grid"></div>
+                <div class="chart-container"><canvas id="graficoEstados"></canvas></div>
             </section>
 
             <section class="glass-panel vista-panel" id="vista-domiciliarios">
@@ -88,13 +90,20 @@
                         <option>Entregado</option>
                         <option>Cancelado</option>
                     </select>
+                    <input type="search" id="buscarPedidos" class="form-control" placeholder="Buscar por cliente o número de domicilio...">
+                    <button type="button" class="btn-action btn-toggle-off" id="btnExportarCsv"><i class="fa-solid fa-file-csv"></i> Exportar CSV</button>
                 </div>
                 <div id="contenedorPedidos" class="orders-grid"></div>
+                <div class="paginacion" id="paginacionPedidos"></div>
             </section>
 
             <section class="glass-panel vista-panel" id="vista-clientes">
                 <h2 class="section-title"><i class="fa-solid fa-address-book"></i> Clientes registrados</h2>
+                <div class="filter-bar">
+                    <input type="search" id="buscarClientes" class="form-control" placeholder="Buscar por nombre, teléfono o correo...">
+                </div>
                 <div id="contenedorClientes" class="orders-grid"></div>
+                <div class="paginacion" id="paginacionClientes"></div>
             </section>
         </main>
     </div>
@@ -109,6 +118,6 @@
         <div id="modalCuerpo"></div>
     </div>
 </div>
-<script src="script.js?v=4" defer></script>
+<script src="script.js?v=5" defer></script>
 </body>
 </html>

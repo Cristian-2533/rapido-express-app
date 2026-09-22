@@ -1,8 +1,10 @@
 from datetime import datetime
 from pathlib import Path
 import base64
+import csv
 import hashlib
 import hmac
+import io
 import os
 import sqlite3
 import time
@@ -10,7 +12,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -19,6 +21,11 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 DATABASE_PATH = Path(os.getenv("RAPIDO_EXPRESS_DB", BASE_DIR / "rapido_express.db"))
 SECRET_KEY = os.getenv("RAPIDO_EXPRESS_SECRET", "cambia-esta-clave-en-produccion").encode()
+if not os.getenv("RAPIDO_EXPRESS_SECRET"):
+    print(
+        "ADVERTENCIA: RAPIDO_EXPRESS_SECRET no está definida; usando una clave de solo-desarrollo. "
+        "Defínela como variable de entorno antes de exponer este servidor a otras personas."
+    )
 TOKEN_TTL_SECONDS = 8 * 60 * 60
 ESTADOS_PEDIDO = ["Pendiente", "Asignado", "En camino", "Entregado", "Cancelado"]
 app = FastAPI(title="Rápido Express API", version="2.0")
@@ -86,6 +93,15 @@ def inicializar_db() -> None:
                 observaciones TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
                 FOREIGN KEY (id_repartidor) REFERENCES repartidores(id_repartidor)
+            );
+            CREATE TABLE IF NOT EXISTS historial_pedidos (
+                id_historial INTEGER PRIMARY KEY AUTOINCREMENT,
+                id_pedido INTEGER NOT NULL,
+                estado TEXT NOT NULL,
+                fecha_hora TEXT NOT NULL,
+                id_usuario INTEGER,
+                FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido),
+                FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
             );
             """
         )
@@ -198,6 +214,10 @@ class AsignarRepartidor(BaseModel):
     id_repartidor: int
 
 
+class NuevaPassword(BaseModel):
+    password: str = Field(min_length=6)
+
+
 def generar_token(id_usuario: int, rol: str) -> str:
     expira = int(time.time()) + TOKEN_TTL_SECONDS
     payload = f"{id_usuario}:{rol}:{expira}"
@@ -233,6 +253,13 @@ def exigir_rol(usuario: dict, *roles: str) -> None:
 
 def fila_dict(row: Optional[sqlite3.Row]) -> Optional[dict]:
     return dict(row) if row else None
+
+
+def _registrar_historial(db: sqlite3.Connection, id_pedido: int, estado: str, id_usuario: Optional[int]) -> None:
+    db.execute(
+        "INSERT INTO historial_pedidos (id_pedido, estado, fecha_hora, id_usuario) VALUES (?, ?, ?, ?)",
+        (id_pedido, estado, datetime.now().isoformat(timespec="seconds"), id_usuario),
+    )
 
 
 @app.get("/")
@@ -280,11 +307,27 @@ def crear_cliente(datos: RegistroCliente):
 
 
 @app.get("/clientes/")
-def obtener_clientes(actual: dict = Depends(usuario_actual)):
+def obtener_clientes(
+    q: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: int = 0,
+    actual: dict = Depends(usuario_actual),
+):
     exigir_rol(actual, "administrador")
+    condicion = ""
+    params: tuple = ()
+    if q:
+        condicion = " WHERE nombre LIKE ? OR telefono LIKE ? OR correo LIKE ?"
+        comodin = f"%{q}%"
+        params = (comodin, comodin, comodin)
     with conectar_db() as db:
-        clientes = [fila_dict(row) for row in db.execute("SELECT * FROM clientes ORDER BY nombre")]
-    return {"total_clientes": len(clientes), "clientes": clientes}
+        total = db.execute(f"SELECT COUNT(*) FROM clientes{condicion}", params).fetchone()[0]
+        sql = f"SELECT * FROM clientes{condicion} ORDER BY nombre"
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            params = params + (max(1, min(limit, 100)), max(0, offset))
+        clientes = [fila_dict(row) for row in db.execute(sql, params)]
+    return {"total_clientes": total, "clientes": clientes, "limit": limit, "offset": offset}
 
 
 @app.put("/clientes/{id_cliente}")
@@ -298,6 +341,23 @@ def editar_cliente(id_cliente: int, cliente: Cliente, actual: dict = Depends(usu
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="El cliente no existe.")
     return {"mensaje": "Cliente actualizado correctamente."}
+
+
+@app.put("/clientes/{id_cliente}/password")
+def resetear_password_cliente(id_cliente: int, datos: NuevaPassword, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        cliente = db.execute("SELECT id_usuario FROM clientes WHERE id_cliente = ?", (id_cliente,)).fetchone()
+        if not cliente:
+            raise HTTPException(status_code=404, detail="El cliente no existe.")
+        if not cliente["id_usuario"]:
+            raise HTTPException(status_code=400, detail="Este cliente no tiene una cuenta de acceso asociada.")
+        password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+        db.execute(
+            "UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?",
+            (password_hash, cliente["id_usuario"]),
+        )
+    return {"mensaje": "Contraseña actualizada correctamente."}
 
 
 @app.delete("/clientes/{id_cliente}")
@@ -314,8 +374,14 @@ def eliminar_cliente(id_cliente: int, actual: dict = Depends(usuario_actual)):
     return {"mensaje": "Cliente eliminado correctamente."}
 
 
-def pedido_query(db: sqlite3.Connection, where: str = "", params: tuple = ()) -> list[dict]:
-    rows = db.execute(
+def pedido_query(
+    db: sqlite3.Connection,
+    where: str = "",
+    params: tuple = (),
+    limit: Optional[int] = None,
+    offset: int = 0,
+) -> list[dict]:
+    sql = (
         """
         SELECT p.*, c.nombre AS cliente, c.telefono AS telefono_cliente,
                c.correo AS correo_cliente, u.nombre AS repartidor
@@ -325,10 +391,34 @@ def pedido_query(db: sqlite3.Connection, where: str = "", params: tuple = ()) ->
         LEFT JOIN usuarios u ON u.id_usuario = r.id_usuario
         """
         + where
-        + " ORDER BY p.id_pedido DESC",
-        params,
-    ).fetchall()
+        + " ORDER BY p.id_pedido DESC"
+    )
+    if limit is not None:
+        sql += " LIMIT ? OFFSET ?"
+        params = params + (max(1, min(limit, 100)), max(0, offset))
+    rows = db.execute(sql, params).fetchall()
     return [fila_dict(row) for row in rows]
+
+
+def pedido_count(db: sqlite3.Connection, where: str = "", params: tuple = ()) -> int:
+    sql = (
+        "SELECT COUNT(*) FROM pedidos p JOIN clientes c ON c.id_cliente = p.id_cliente" + where
+    )
+    return db.execute(sql, params).fetchone()[0]
+
+
+def pedido_condiciones(estado: Optional[str], q: Optional[str]) -> tuple[str, tuple]:
+    condiciones = []
+    params: list = []
+    if estado:
+        condiciones.append("p.estado = ?")
+        params.append(estado)
+    if q:
+        condiciones.append("(c.nombre LIKE ? OR CAST(p.id_pedido AS TEXT) LIKE ?)")
+        comodin = f"%{q}%"
+        params.extend([comodin, comodin])
+    where = " WHERE " + " AND ".join(condiciones) if condiciones else ""
+    return where, tuple(params)
 
 
 @app.post("/pedidos/")
@@ -351,17 +441,68 @@ def crear_pedido(pedido: Pedido, actual: dict = Depends(usuario_actual)):
                 pedido.observaciones,
             ),
         )
+        _registrar_historial(db, cursor.lastrowid, "Pendiente", actual["id_usuario"])
     return {"mensaje": "Domicilio registrado con éxito.", "id_pedido": cursor.lastrowid, "estado": "Pendiente"}
 
 
 @app.get("/pedidos/")
-def obtener_pedidos(estado: Optional[str] = None, actual: dict = Depends(usuario_actual)):
+def obtener_pedidos(
+    estado: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+    actual: dict = Depends(usuario_actual),
+):
     exigir_rol(actual, "administrador")
     if estado and estado not in ESTADOS_PEDIDO:
         raise HTTPException(status_code=400, detail=f"Estado inválido. Use uno de: {', '.join(ESTADOS_PEDIDO)}.")
+    where, params = pedido_condiciones(estado, q)
     with conectar_db() as db:
-        pedidos = pedido_query(db, " WHERE p.estado = ?", (estado,)) if estado else pedido_query(db)
-    return {"total_pedidos": len(pedidos), "pedidos": pedidos}
+        total = pedido_count(db, where, params)
+        pedidos = pedido_query(db, where, params, limit=limit, offset=offset)
+    return {"total_pedidos": total, "pedidos": pedidos, "limit": limit, "offset": offset}
+
+
+@app.get("/pedidos/exportar")
+def exportar_pedidos_csv(estado: Optional[str] = None, q: Optional[str] = None, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    where, params = pedido_condiciones(estado, q)
+    with conectar_db() as db:
+        pedidos = pedido_query(db, where, params)
+    buffer = io.StringIO()
+    buffer.write("﻿")
+    writer = csv.writer(buffer)
+    writer.writerow([
+        "ID", "Cliente", "Teléfono", "Recogida", "Entrega", "Fecha", "Valor",
+        "Método de pago", "Estado", "Repartidor", "Observaciones",
+    ])
+    for pedido in pedidos:
+        writer.writerow([
+            pedido["id_pedido"], pedido["cliente"], pedido["telefono_cliente"],
+            pedido["direccion_recogida"], pedido["direccion_entrega"], pedido["fecha_hora"],
+            pedido["valor_servicio"], pedido["metodo_pago"], pedido["estado"],
+            pedido["repartidor"] or "", pedido["observaciones"],
+        ])
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer, media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=domicilios.csv"},
+    )
+
+
+@app.get("/pedidos/{id_pedido}/historial")
+def historial_pedido(id_pedido: int, actual: dict = Depends(usuario_actual)):
+    obtener_pedido_por_id(id_pedido, actual)
+    with conectar_db() as db:
+        rows = db.execute(
+            """
+            SELECT h.estado, h.fecha_hora, u.nombre AS usuario
+            FROM historial_pedidos h LEFT JOIN usuarios u ON u.id_usuario = h.id_usuario
+            WHERE h.id_pedido = ? ORDER BY h.id_historial
+            """,
+            (id_pedido,),
+        ).fetchall()
+    return {"historial": [fila_dict(row) for row in rows]}
 
 
 @app.put("/pedidos/{id_pedido}")
@@ -471,6 +612,23 @@ def crear_repartidor(datos: RegistroRepartidor, actual: dict = Depends(usuario_a
     return {"mensaje": "Repartidor registrado con éxito.", "id_repartidor": id_repartidor}
 
 
+@app.put("/repartidores/{id_repartidor}/password")
+def resetear_password_repartidor(id_repartidor: int, datos: NuevaPassword, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        repartidor = db.execute(
+            "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (id_repartidor,)
+        ).fetchone()
+        if not repartidor:
+            raise HTTPException(status_code=404, detail="El repartidor no existe.")
+        password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+        db.execute(
+            "UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?",
+            (password_hash, repartidor["id_usuario"]),
+        )
+    return {"mensaje": "Contraseña actualizada correctamente."}
+
+
 @app.delete("/repartidores/{id_repartidor}")
 def eliminar_repartidor(id_repartidor: int, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador")
@@ -514,6 +672,7 @@ def asignar_repartidor_pedido(
             "UPDATE pedidos SET id_repartidor = ?, estado = 'Asignado' WHERE id_pedido = ?",
             (datos.id_repartidor, id_pedido),
         )
+        _registrar_historial(db, id_pedido, "Asignado", actual["id_usuario"])
     return {"mensaje": "Domicilio asignado correctamente.", "nuevo_estado": "Asignado"}
 
 
@@ -527,6 +686,7 @@ def cancelar_pedido(id_pedido: int, actual: dict = Depends(usuario_actual)):
         )
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="El domicilio no existe o ya fue entregado.")
+        _registrar_historial(db, id_pedido, "Cancelado", actual["id_usuario"])
     return {"mensaje": "Domicilio cancelado correctamente.", "id_pedido": id_pedido}
 
 
@@ -593,6 +753,7 @@ def actualizar_estado_pedido(
             if not assigned:
                 raise HTTPException(status_code=403, detail="Solo puede actualizar domicilios asignados.")
         db.execute("UPDATE pedidos SET estado = ? WHERE id_pedido = ?", (datos.nuevo_estado, id_pedido))
+        _registrar_historial(db, id_pedido, datos.nuevo_estado, actual["id_usuario"])
     return {"mensaje": "Estado actualizado correctamente.", "nuevo_estado": datos.nuevo_estado}
 
 
