@@ -91,9 +91,70 @@ function mostrarToast(mensaje) {
         setTimeout(() => toast.remove(), 300);
     }, 5000);
 }
-function pedirPermisoNotificaciones() {
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+
+let notificacionesRepartidor = [];
+
+function agregarNotificacionRepartidor(pedido) {
+    const existe = notificacionesRepartidor.some(
+        (notificacion) => notificacion.id_pedido === pedido.id_pedido
+    );
+
+    if (existe) return;
+
+    const notificacion = {
+        id_pedido: pedido.id_pedido,
+        direccion_recogida: pedido.direccion_recogida,
+        direccion_entrega: pedido.direccion_entrega,
+        fecha: new Date()
+    };
+
+    notificacionesRepartidor.unshift(notificacion);
+
+    actualizarPanelNotificaciones();
+
+    notificar(
+        "Nuevo domicilio asignado",
+        `Domicilio #${pedido.id_pedido}: ${pedido.direccion_entrega}`
+    );
 }
+
+function actualizarPanelNotificaciones() {
+    const contador = document.getElementById("contadorNotificaciones");
+    const lista = document.getElementById("listaNotificaciones");
+
+    if (!contador || !lista) return;
+
+    contador.textContent = notificacionesRepartidor.length;
+
+    contador.style.display =
+        notificacionesRepartidor.length > 0 ? "flex" : "none";
+
+    if (notificacionesRepartidor.length === 0) {
+        lista.innerHTML = `
+            <p class="notification-empty">
+                No tienes nuevas notificaciones.
+            </p>
+        `;
+        return;
+    }
+
+    lista.innerHTML = notificacionesRepartidor.map((notificacion) => `
+        <div class="notification-item">
+            <div class="notification-icon">
+                <i class="fa-solid fa-box"></i>
+            </div>
+
+            <div class="notification-content">
+                <strong>Nuevo domicilio asignado</strong>
+                <p>Domicilio #${notificacion.id_pedido}</p>
+                <small>
+                    📍 ${escapeHtml(notificacion.direccion_entrega)}
+                </small>
+            </div>
+        </div>
+    `).join("");
+}
+
 function renderPaginacion(idContenedor, total, limite, paginaActual, onCambiar) {
     const contenedor = document.getElementById(idContenedor);
     if (!contenedor) return;
