@@ -12,12 +12,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" defer></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="" defer></script>
     <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body class="role-admin">
 <input type="checkbox" id="sidebarToggle" class="sidebar-toggle-checkbox">
 <input type="radio" name="vistaAdmin" id="vistaRadioRegistrar" class="vista-radio" checked>
 <input type="radio" name="vistaAdmin" id="vistaRadioResumen" class="vista-radio">
+<input type="radio" name="vistaAdmin" id="vistaRadioMapa" class="vista-radio">
 <input type="radio" name="vistaAdmin" id="vistaRadioDomiciliarios" class="vista-radio">
 <input type="radio" name="vistaAdmin" id="vistaRadioDomicilios" class="vista-radio">
 <input type="radio" name="vistaAdmin" id="vistaRadioClientes" class="vista-radio">
@@ -28,6 +31,7 @@
         <nav class="sidebar-nav">
             <label for="vistaRadioRegistrar" class="nav-link"><i class="fa-solid fa-box"></i><span>Registrar</span></label>
             <label for="vistaRadioResumen" class="nav-link"><i class="fa-solid fa-chart-simple"></i><span>Resumen</span></label>
+            <label for="vistaRadioMapa" class="nav-link"><i class="fa-solid fa-map-location-dot"></i><span>Mapa de Flota</span></label>
             <label for="vistaRadioDomiciliarios" class="nav-link"><i class="fa-solid fa-users"></i><span>Domiciliarios</span></label>
             <label for="vistaRadioDomicilios" class="nav-link"><i class="fa-solid fa-list-check"></i><span>Domicilios</span></label>
             <label for="vistaRadioClientes" class="nav-link"><i class="fa-solid fa-address-book"></i><span>Clientes</span></label>
@@ -65,6 +69,11 @@
                 <h2 class="section-title"><i class="fa-solid fa-chart-simple"></i> Resumen</h2>
                 <div id="contenedorEstadisticas" class="stats-grid"></div>
                 <div class="chart-container"><canvas id="graficoEstados"></canvas></div>
+            </section>
+
+            <section class="glass-panel vista-panel" id="vista-mapa">
+                <h2 class="section-title"><i class="fa-solid fa-map-location-dot"></i> Mapa de Flota en Tiempo Real</h2>
+                <div id="mapaFlota" style="width: 100%; height: 500px; border-radius: 12px; z-index: 1;"></div>
             </section>
 
             <section class="glass-panel vista-panel" id="vista-domiciliarios">

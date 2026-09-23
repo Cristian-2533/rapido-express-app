@@ -1,6 +1,8 @@
 const API_URL = window.location.origin;
 const usuario = JSON.parse(sessionStorage.getItem("usuario") || "null");
 const token = sessionStorage.getItem("token") || "";
+const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
+const token = localStorage.getItem("token") || "";
 
 function headers() {
     const base = { "Content-Type": "application/json" };
@@ -35,6 +37,8 @@ async function api(path, options = {}) {
 function cerrarSesion() {
     sessionStorage.removeItem("usuario");
     sessionStorage.removeItem("token");
+    localStorage.removeItem("usuario");
+    localStorage.removeItem("token");
     window.location.href = "login.html";
 }
 function protegerVista(rol) {
@@ -385,8 +389,52 @@ function alBuscar(callback) {
     debounceBusqueda = setTimeout(() => callback().catch((error) => alert(error.message)), 350);
 }
 
+// --- MAPA LEAFLET ---
+let mapaAdmin = null;
+let marcadoresFlota = {};
+let intervaloMapa = null;
+
+async function actualizarMapaFlota() {
+    try {
+        const data = await api("/repartidores/ubicaciones");
+        data.repartidores.forEach(rep => {
+            if (marcadoresFlota[rep.id_repartidor]) {
+                marcadoresFlota[rep.id_repartidor].setLatLng([rep.latitud, rep.longitud]);
+            } else {
+                if(window.L) {
+                    const marker = L.marker([rep.latitud, rep.longitud]).addTo(mapaAdmin)
+                        .bindPopup(`<b>${escapeHtml(rep.nombre)}</b><br>${rep.disponible ? 'Disponible' : 'Ocupado'}`);
+                    marcadoresFlota[rep.id_repartidor] = marker;
+                }
+            }
+        });
+    } catch (error) {
+        console.error("Error al obtener ubicaciones:", error);
+    }
+}
+
+function iniciarMapaFlota() {
+    if (mapaAdmin || !document.getElementById("mapaFlota") || !window.L) return;
+    
+    // Coordenadas por defecto (Bogotá)
+    mapaAdmin = L.map('mapaFlota').setView([4.6097, -74.0817], 12); 
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(mapaAdmin);
+    
+    // Al abrir la pestaña de mapa, redibujar para evitar problemas de tiles grises
+    document.getElementById("vistaRadioMapa")?.addEventListener("change", () => {
+        setTimeout(() => mapaAdmin.invalidateSize(), 100);
+    });
+
+    actualizarMapaFlota();
+    intervaloMapa = setInterval(actualizarMapaFlota, 10000); // 10 segundos
+}
+
 async function iniciarAdmin() {
     if (!protegerVista("administrador")) return;
+    iniciarMapaFlota();
     try { await cargarClientes(); await cargarAdmin(); await cargarClientesAdmin(); await cargarGanancias(); } catch (error) { alert(error.message); }
     document.getElementById("fechaGanancias")?.addEventListener("change", () => cargarGanancias().catch((error) => alert(error.message)));
     document.getElementById("filtroEstado")?.addEventListener("change", () => { paginaPedidos = 0; cargarAdmin().catch((error) => alert(error.message)); });
@@ -491,8 +539,18 @@ async function iniciarCliente() {
             document.getElementById("resultadoConsulta").innerHTML = `<article class="order-card"><div class="order-header"><strong>Domicilio #${data.pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(data.pedido.estado)}">${escapeHtml(data.pedido.estado)}</span></div><div class="order-info">${detallePedido(data.pedido)}</div></article>`;
             document.getElementById("wrapperComprobante").style.display = "block";
         } catch (error) { alert(error.message); }
+        } catch (error) { 
+            alert(error.message);
+            ultimoPedidoConsultado = null;
+            document.getElementById("resultadoConsulta").innerHTML = `
+                <p class="empty-state">
+                    No se encontró el domicilio. Verifique el número e intente de nuevo.
+                </p>`;
+            document.getElementById("wrapperComprobante").style.display = "none";
+        }
     });
     document.getElementById("btnComprobante")?.addEventListener("click", () => {
+    document.getElementById("btnComprobante")?.addEventListener("click", async (event) => {
         if (!ultimoPedidoConsultado || !window.jspdf) return;
         const pedido = ultimoPedidoConsultado;
         const doc = new window.jspdf.jsPDF();
@@ -512,6 +570,38 @@ async function iniciarCliente() {
         ];
         lineas.forEach((linea, indice) => doc.text(linea, 15, 35 + indice * 8));
         doc.save(`comprobante-domicilio-${pedido.id_pedido}.pdf`);
+        
+        const btn = event.currentTarget;
+        const textoOriginal = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando PDF...';
+
+        try {
+            // Simulamos un breve delay para que la UI se actualice
+            await new Promise(r => setTimeout(r, 500));
+            
+            const pedido = ultimoPedidoConsultado;
+            const doc = new window.jspdf.jsPDF();
+            doc.setFontSize(16);
+            doc.text("Rápido Express - Comprobante de domicilio", 15, 20);
+            doc.setFontSize(11);
+            const lineas = [
+                `Domicilio #${pedido.id_pedido}`,
+                `Estado: ${pedido.estado}`,
+                `Cliente: ${pedido.cliente} (${pedido.telefono_cliente})`,
+                `Recogida: ${pedido.direccion_recogida}`,
+                `Entrega: ${pedido.direccion_entrega}`,
+                `Fecha: ${pedido.fecha_hora}`,
+                `Valor del servicio: ${dinero(pedido.valor_servicio)}`,
+                `Método de pago: ${pedido.metodo_pago}`,
+                `Observaciones: ${pedido.observaciones || "Sin observaciones"}`,
+            ];
+            lineas.forEach((linea, indice) => doc.text(linea, 15, 35 + indice * 8));
+            doc.save(`comprobante-domicilio-${pedido.id_pedido}.pdf`);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = textoOriginal;
+        }
     });
 }
 
@@ -526,4 +616,43 @@ document.addEventListener("DOMContentLoaded", () => {
             link.addEventListener("click", () => { sidebarToggle.checked = false; });
         });
     }
+}
+
+// --- GPS TRACKING PARA REPARTIDORES ---
+let rastreadorGPS = null;
+
+function iniciarRastreoGPS() {
+    if (usuario && usuario.rol === 'repartidor' && "geolocation" in navigator) {
+        // Pedimos la ubicación constantemente
+        rastreadorGPS = navigator.geolocation.watchPosition(
+            async (pos) => {
+                try {
+                    await fetch(`${API_URL}/repartidores/ubicacion`, {
+                        method: 'PATCH',
+                        headers: headers(),
+                        body: JSON.stringify({
+                            latitud: pos.coords.latitude,
+                            longitud: pos.coords.longitude
+                        })
+                    });
+                } catch (error) {
+                    console.error("Error enviando ubicación GPS:", error);
+                }
+            },
+            (error) => {
+                console.warn("GPS no disponible o denegado:", error);
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 10000,
+                timeout: 5000
+            }
+        );
+    }
+}
+
+// Iniciar el rastreo si somos repartidores
+if (usuario && usuario.rol === 'repartidor') {
+    iniciarRastreoGPS();
+}
 });

@@ -194,6 +194,9 @@ class ActualizarEstado(BaseModel):
     def estado_valido(cls, value: str) -> str:
         if value not in ESTADOS_PEDIDO:
             raise ValueError(f"Estado inválido. Use uno de: {', '.join(ESTADOS_PEDIDO)}.")
+        estados_permitidos = ESTADOS_PEDIDO + ["En espera", "Cancelado por el cliente", "Recibido con conformidad"]
+        if value not in estados_permitidos:
+            raise ValueError(f"Estado inválido. Use uno de: {', '.join(estados_permitidos)}.")
         return value
 
 
@@ -245,6 +248,40 @@ def usuario_actual(authorization: Optional[str] = Header(default=None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Debe iniciar sesión.")
     return verificar_token(authorization.removeprefix("Bearer ").strip())
+
+
+class Ubicacion(BaseModel):
+    latitud: float
+    longitud: float
+
+
+@app.patch("/repartidores/ubicacion")
+def actualizar_ubicacion(datos: Ubicacion, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "repartidor")
+    with conectar_db() as db:
+        cursor = db.execute(
+            "UPDATE repartidores SET latitud = ?, longitud = ?, ultima_actualizacion_gps = ? WHERE id_usuario = ?",
+            (datos.latitud, datos.longitud, datetime.now().isoformat(), actual["id_usuario"])
+        )
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Repartidor no encontrado.")
+    return {"mensaje": "Ubicación actualizada."}
+
+
+@app.get("/repartidores/ubicaciones")
+def obtener_ubicaciones(actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
+    with conectar_db() as db:
+        # Traemos a los repartidores que tengan coordenadas y que su última actualización no sea muy vieja (opcional)
+        rows = db.execute(
+            """
+            SELECT r.id_repartidor, u.nombre, r.latitud, r.longitud, r.ultima_actualizacion_gps, r.disponible
+            FROM repartidores r
+            JOIN usuarios u ON u.id_usuario = r.id_usuario
+            WHERE r.latitud IS NOT NULL AND r.longitud IS NOT NULL
+            """
+        ).fetchall()
+    return {"repartidores": [fila_dict(row) for row in rows]}
 
 
 def exigir_rol(usuario: dict, *roles: str) -> None:
@@ -771,9 +808,14 @@ def actualizar_estado_pedido(
     id_pedido: int, datos: ActualizarEstado, actual: dict = Depends(usuario_actual)
 ):
     exigir_rol(actual, "repartidor", "administrador")
+    exigir_rol(actual, "repartidor", "administrador", "cliente")
+    
     with conectar_db() as db:
         if not db.execute("SELECT 1 FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone():
+        pedido = db.execute("SELECT id_cliente FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone()
+        if not pedido:
             raise HTTPException(status_code=404, detail="El domicilio no existe.")
+            
         if actual["rol"] == "repartidor":
             assigned = db.execute(
                 """
@@ -785,8 +827,40 @@ def actualizar_estado_pedido(
             ).fetchone()
             if not assigned:
                 raise HTTPException(status_code=403, detail="Solo puede actualizar domicilios asignados.")
+                
+        if actual["rol"] == "cliente":
+            # Verificar que el pedido pertenezca a este cliente
+            es_dueno = db.execute(
+                "SELECT 1 FROM clientes WHERE id_cliente = ? AND id_usuario = ?",
+                (pedido["id_cliente"], actual["id_usuario"])
+            ).fetchone()
+            if not es_dueno:
+                raise HTTPException(status_code=403, detail="No puedes actualizar pedidos de otros clientes.")
+            
+            # Un cliente solo puede cancelar un pedido si está pendiente
+            # o confirmar que lo recibió con conformidad
+            estado_actual = db.execute("SELECT estado FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone()["estado"]
+            
+            if datos.nuevo_estado == "Cancelado por el cliente":
+                if estado_actual not in ["Pendiente"]:
+                    raise HTTPException(status_code=400, detail="Solo puedes cancelar un pedido que está Pendiente.")
+                datos.nuevo_estado = "Cancelado"
+                
+            elif datos.nuevo_estado == "Recibido con conformidad":
+                if estado_actual not in ["En camino", "Entregado"]:
+                    raise HTTPException(status_code=400, detail="Solo puedes confirmar un pedido que ya está en camino o entregado.")
+                datos.nuevo_estado = "Entregado"
+                
+            elif datos.nuevo_estado == "En espera":
+                if estado_actual != "Pendiente":
+                    raise HTTPException(status_code=400, detail="El pedido no puede volver a espera.")
+                datos.nuevo_estado = "Pendiente"
+            else:
+                raise HTTPException(status_code=403, detail="Estado no permitido para clientes.")
+
         db.execute("UPDATE pedidos SET estado = ? WHERE id_pedido = ?", (datos.nuevo_estado, id_pedido))
         _registrar_historial(db, id_pedido, datos.nuevo_estado, actual["id_usuario"])
+        
     return {"mensaje": "Estado actualizado correctamente.", "nuevo_estado": datos.nuevo_estado}
 
 
