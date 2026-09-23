@@ -42,9 +42,29 @@ function cerrarSesion() {
     window.location.href = "login.html";
 }
 function protegerVista(rol) {
-    if (!usuario || !token || usuario.rol !== rol) { window.location.replace("login.html"); return false; }
-    document.getElementById("nombreUsuario")?.append(` ${usuario.nombre}`);
-    document.getElementById("btnLogout")?.addEventListener("click", (event) => { event.preventDefault(); cerrarSesion(); });
+    if (!usuario || !token || usuario.rol !== rol) {
+        window.location.replace("login.html");
+        return false;
+    }
+
+    const nombreUsuario = document.getElementById("nombreUsuario");
+
+    if (nombreUsuario && !nombreUsuario.dataset.inicializado) {
+        nombreUsuario.textContent = ` ${usuario.nombre}`;
+        nombreUsuario.dataset.inicializado = "true";
+    }
+
+    const btnLogout = document.getElementById("btnLogout");
+
+    if (btnLogout && !btnLogout.dataset.inicializado) {
+        btnLogout.dataset.inicializado = "true";
+
+        btnLogout.addEventListener("click", (event) => {
+            event.preventDefault();
+            cerrarSesion();
+        });
+    }
+
     return true;
 }
 function badgeClaseEstado(estado) {
