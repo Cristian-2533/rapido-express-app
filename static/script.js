@@ -588,6 +588,17 @@ let pedidosConocidosRepartidor = null;
 
 async function iniciarRepartidor() {
     if (!protegerVista("repartidor")) return;
+    const btnNotificaciones = document.getElementById("btnNotificaciones");
+    const panelNotificaciones = document.getElementById("panelNotificaciones");
+
+    if (btnNotificaciones && panelNotificaciones && !btnNotificaciones.dataset.inicializado) {
+
+    btnNotificaciones.dataset.inicializado = "true";
+
+    btnNotificaciones.addEventListener("click", () => {
+        panelNotificaciones.classList.toggle("visible");
+    });
+    }
     if (!intervaloRepartidor) {
         pedirPermisoNotificaciones();
         document.getElementById("btnActualizarPedidos")?.addEventListener("click", () => iniciarRepartidor());
