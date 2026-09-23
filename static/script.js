@@ -607,7 +607,7 @@ async function iniciarRepartidor() {
         if (pedidosConocidosRepartidor) {
             assigned.pedidos
                 .filter((pedido) => !pedidosConocidosRepartidor.has(pedido.id_pedido))
-                .forEach(notificarNuevoDomicilio);
+                .forEach(agregarNotificacionRepartidor);
         }
         pedidosConocidosRepartidor = new Set(assigned.pedidos.map((pedido) => pedido.id_pedido));
         const container = document.getElementById("contenedorPedidosRepartidor");
