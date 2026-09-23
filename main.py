@@ -162,10 +162,10 @@ def inicializar_db() -> None:
             db.execute(
                 """
                 INSERT INTO repartidores
-                    (id_usuario, telefono, disponible, zona, tipo_vehiculo, placa_vehiculo)
-                VALUES (?, ?, 1, ?, ?, ?)
+                    (id_usuario, telefono, disponible, zona, tipo_vehiculo, placa_vehiculo, latitude, longitude)
+                VALUES (?, ?, 1, ?, ?, ?, ?, ?)
                 """,
-                (driver_user["id_usuario"], "3000000000", "Zona norte", "moto", "DEMO123"),
+                (driver_user["id_usuario"], "3000000000", "Zona norte", "moto", "DEMO123", 4.6097, -74.0817),
             )
             db.execute(
                 """
@@ -230,6 +230,20 @@ def _migrar_perfiles_usuario(db: sqlite3.Connection) -> None:
             "UPDATE repartidores SET longitude = longitud "
             "WHERE longitude IS NULL AND longitud IS NOT NULL"
         )
+
+    db.execute(
+        """
+        UPDATE repartidores
+        SET latitude = 4.6097,
+            longitude = -74.0817,
+            ultima_actualizacion_gps = ?
+        WHERE (latitude IS NULL OR longitude IS NULL)
+          AND id_usuario = (
+              SELECT id_usuario FROM usuarios WHERE correo = ?
+          )
+        """,
+        (datetime.now(timezone.utc).isoformat(timespec="seconds"), "juanito@rapidoexpress.com"),
+    )
 
 
 @app.on_event("startup")
