@@ -1,12 +1,12 @@
 const API_URL = window.location.origin;
-const usuario = JSON.parse(sessionStorage.getItem("usuario") || "null");
-const token = sessionStorage.getItem("token") || "";
-const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
-const token = localStorage.getItem("token") || "";
+const usuario = JSON.parse(
+    sessionStorage.getItem("usuario") || localStorage.getItem("usuario") || "null"
+);
+const token = sessionStorage.getItem("token") || localStorage.getItem("token") || "";
 
 function headers() {
     const base = { "Content-Type": "application/json" };
-    if (token) base.Authorization = `Bearer ${token}`;
+    if (token) base.Authorization = "Bearer " + token;
     return base;
 }
 function escapeHtml(value) {
@@ -538,48 +538,20 @@ async function iniciarCliente() {
             ultimoPedidoConsultado = data.pedido;
             document.getElementById("resultadoConsulta").innerHTML = `<article class="order-card"><div class="order-header"><strong>Domicilio #${data.pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(data.pedido.estado)}">${escapeHtml(data.pedido.estado)}</span></div><div class="order-info">${detallePedido(data.pedido)}</div></article>`;
             document.getElementById("wrapperComprobante").style.display = "block";
-        } catch (error) { alert(error.message); }
-        } catch (error) { 
+        } catch (error) {
             alert(error.message);
             ultimoPedidoConsultado = null;
-            document.getElementById("resultadoConsulta").innerHTML = `
-                <p class="empty-state">
-                    No se encontró el domicilio. Verifique el número e intente de nuevo.
-                </p>`;
+            document.getElementById("resultadoConsulta").innerHTML = `<p class="empty-state">No se encontró el domicilio. Verifique el número e intente de nuevo.</p>`;
             document.getElementById("wrapperComprobante").style.display = "none";
         }
     });
-    document.getElementById("btnComprobante")?.addEventListener("click", () => {
     document.getElementById("btnComprobante")?.addEventListener("click", async (event) => {
         if (!ultimoPedidoConsultado || !window.jspdf) return;
-        const pedido = ultimoPedidoConsultado;
-        const doc = new window.jspdf.jsPDF();
-        doc.setFontSize(16);
-        doc.text("Rápido Express - Comprobante de domicilio", 15, 20);
-        doc.setFontSize(11);
-        const lineas = [
-            `Domicilio #${pedido.id_pedido}`,
-            `Estado: ${pedido.estado}`,
-            `Cliente: ${pedido.cliente} (${pedido.telefono_cliente})`,
-            `Recogida: ${pedido.direccion_recogida}`,
-            `Entrega: ${pedido.direccion_entrega}`,
-            `Fecha: ${pedido.fecha_hora}`,
-            `Valor del servicio: ${dinero(pedido.valor_servicio)}`,
-            `Método de pago: ${pedido.metodo_pago}`,
-            `Observaciones: ${pedido.observaciones || "Sin observaciones"}`,
-        ];
-        lineas.forEach((linea, indice) => doc.text(linea, 15, 35 + indice * 8));
-        doc.save(`comprobante-domicilio-${pedido.id_pedido}.pdf`);
-        
         const btn = event.currentTarget;
         const textoOriginal = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando PDF...';
-
         try {
-            // Simulamos un breve delay para que la UI se actualice
-            await new Promise(r => setTimeout(r, 500));
-            
             const pedido = ultimoPedidoConsultado;
             const doc = new window.jspdf.jsPDF();
             doc.setFontSize(16);
@@ -604,7 +576,6 @@ async function iniciarCliente() {
         }
     });
 }
-
 document.addEventListener("DOMContentLoaded", () => {
     if (document.getElementById("formPedido")) iniciarAdmin();
     if (document.getElementById("contenedorPedidosRepartidor")) iniciarRepartidor();
@@ -616,7 +587,7 @@ document.addEventListener("DOMContentLoaded", () => {
             link.addEventListener("click", () => { sidebarToggle.checked = false; });
         });
     }
-}
+});
 
 // --- GPS TRACKING PARA REPARTIDORES ---
 let rastreadorGPS = null;
@@ -655,4 +626,3 @@ function iniciarRastreoGPS() {
 if (usuario && usuario.rol === 'repartidor') {
     iniciarRastreoGPS();
 }
-});
