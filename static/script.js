@@ -109,10 +109,20 @@ function mostrarToast(mensaje) {
 }
 
 function pedirPermisoNotificaciones() {
+<<<<<<< HEAD
     if (!("Notification" in window)) return;
     if (Notification.permission === "granted") return;
     if (Notification.permission === "denied") return;
     Notification.requestPermission().catch(() => {});
+=======
+    if (!("Notification" in window)) {
+        return;
+    }
+
+    if (Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+    }
+>>>>>>> f4c0acae61b78e68eff3d3fa82e540dbf576ca0e
 }
 
 let notificacionesRepartidor = [];
