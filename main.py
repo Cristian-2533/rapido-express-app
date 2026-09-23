@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import base64
 import csv
@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -106,6 +106,7 @@ def inicializar_db() -> None:
             );
             """
         )
+        _migrar_gps_repartidores(db)
         if db.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone() is None:
             password = hashlib.sha256("12345678".encode()).hexdigest()
             db.execute(
@@ -140,6 +141,32 @@ def inicializar_db() -> None:
                 "UPDATE clientes SET id_usuario = ? WHERE correo = ?",
                 (client_user["id_usuario"], "cliente@rapidoexpress.com"),
             )
+
+
+def _migrar_gps_repartidores(db: sqlite3.Connection) -> None:
+    """Añade el esquema GPS sin reconstruir la tabla ni perder datos."""
+    columnas = {
+        fila["name"]
+        for fila in db.execute("PRAGMA table_info(repartidores)").fetchall()
+    }
+    if "latitude" not in columnas:
+        db.execute("ALTER TABLE repartidores ADD COLUMN latitude REAL")
+    if "longitude" not in columnas:
+        db.execute("ALTER TABLE repartidores ADD COLUMN longitude REAL")
+    if "ultima_actualizacion_gps" not in columnas:
+        db.execute("ALTER TABLE repartidores ADD COLUMN ultima_actualizacion_gps TEXT")
+
+    # Compatibilidad con una instalación que hubiera creado los nombres antiguos.
+    if "latitud" in columnas:
+        db.execute(
+            "UPDATE repartidores SET latitude = latitud "
+            "WHERE latitude IS NULL AND latitud IS NOT NULL"
+        )
+    if "longitud" in columnas:
+        db.execute(
+            "UPDATE repartidores SET longitude = longitud "
+            "WHERE longitude IS NULL AND longitud IS NOT NULL"
+        )
 
 
 @app.on_event("startup")
@@ -251,34 +278,94 @@ def usuario_actual(authorization: Optional[str] = Header(default=None)) -> dict:
 
 
 class Ubicacion(BaseModel):
-    latitud: float
-    longitud: float
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    latitude: float = Field(
+        ge=-90,
+        le=90,
+        validation_alias=AliasChoices("latitude", "latitud"),
+    )
+    longitude: float = Field(
+        ge=-180,
+        le=180,
+        validation_alias=AliasChoices("longitude", "longitud"),
+    )
+
+
+def _actualizar_ubicacion(
+    db: sqlite3.Connection, id_repartidor: int, datos: Ubicacion
+) -> dict:
+    ahora_utc = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    cursor = db.execute(
+        """
+        UPDATE repartidores
+        SET latitude = ?, longitude = ?, ultima_actualizacion_gps = ?
+        WHERE id_repartidor = ?
+        """,
+        (datos.latitude, datos.longitude, ahora_utc, id_repartidor),
+    )
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Repartidor no encontrado.")
+    return {
+        "id_repartidor": id_repartidor,
+        "latitude": datos.latitude,
+        "longitude": datos.longitude,
+        "ultima_actualizacion_gps": ahora_utc,
+    }
+
+
+def _id_repartidor_del_usuario(db: sqlite3.Connection, id_usuario: int) -> int:
+    repartidor = db.execute(
+        "SELECT id_repartidor FROM repartidores WHERE id_usuario = ? AND EXISTS "
+        "(SELECT 1 FROM usuarios WHERE id_usuario = ? AND activo = 1)",
+        (id_usuario, id_usuario),
+    ).fetchone()
+    if not repartidor:
+        raise HTTPException(status_code=404, detail="Repartidor no encontrado.")
+    return repartidor["id_repartidor"]
+
+
+@app.put("/repartidores/{id_repartidor}/ubicacion")
+def actualizar_ubicacion_por_id(
+    id_repartidor: int,
+    datos: Ubicacion,
+    actual: dict = Depends(usuario_actual),
+):
+    exigir_rol(actual, "repartidor")
+    with conectar_db() as db:
+        propietario = db.execute(
+            "SELECT id_repartidor FROM repartidores "
+            "WHERE id_repartidor = ? AND id_usuario = ?",
+            (id_repartidor, actual["id_usuario"]),
+        ).fetchone()
+        if not propietario:
+            raise HTTPException(status_code=403, detail="No puede actualizar esta ubicación.")
+        ubicacion = _actualizar_ubicacion(db, id_repartidor, datos)
+    return {"mensaje": "Ubicación actualizada.", "repartidor": ubicacion}
 
 
 @app.patch("/repartidores/ubicacion")
 def actualizar_ubicacion(datos: Ubicacion, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "repartidor")
     with conectar_db() as db:
-        cursor = db.execute(
-            "UPDATE repartidores SET latitud = ?, longitud = ?, ultima_actualizacion_gps = ? WHERE id_usuario = ?",
-            (datos.latitud, datos.longitud, datetime.now().isoformat(), actual["id_usuario"])
-        )
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Repartidor no encontrado.")
-    return {"mensaje": "Ubicación actualizada."}
+        id_repartidor = _id_repartidor_del_usuario(db, actual["id_usuario"])
+        ubicacion = _actualizar_ubicacion(db, id_repartidor, datos)
+    return {"mensaje": "Ubicación actualizada.", "repartidor": ubicacion}
 
 
 @app.get("/repartidores/ubicaciones")
 def obtener_ubicaciones(actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador")
     with conectar_db() as db:
-        # Traemos a los repartidores que tengan coordenadas y que su última actualización no sea muy vieja (opcional)
         rows = db.execute(
             """
-            SELECT r.id_repartidor, u.nombre, r.latitud, r.longitud, r.ultima_actualizacion_gps, r.disponible
+            SELECT r.id_repartidor, u.nombre,
+                   r.latitude, r.longitude,
+                   r.latitude AS latitud, r.longitude AS longitud,
+                   r.ultima_actualizacion_gps, r.disponible
             FROM repartidores r
             JOIN usuarios u ON u.id_usuario = r.id_usuario
-            WHERE r.latitud IS NOT NULL AND r.longitud IS NOT NULL
+            WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL
             """
         ).fetchall()
     return {"repartidores": [fila_dict(row) for row in rows]}

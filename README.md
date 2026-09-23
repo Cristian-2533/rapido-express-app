@@ -23,6 +23,23 @@ Al arrancar por primera vez, `main.py` crea automáticamente el archivo `rapido_
 | `juanito@rapidoexpress.com` | repartidor | `12345678` |
 | `cliente@rapidoexpress.com` | cliente | `12345678` |
 
+La inicialización también aplica una migración GPS idempotente: agrega `latitude`,
+`longitude` y `ultima_actualizacion_gps` a `repartidores` solo si faltan. No
+reconstruye la tabla ni elimina registros. Para aplicar la migración manualmente,
+realizá primero una copia del archivo y ejecutá:
+
+```sql
+ALTER TABLE repartidores ADD COLUMN latitude REAL;
+ALTER TABLE repartidores ADD COLUMN longitude REAL;
+ALTER TABLE repartidores ADD COLUMN ultima_actualizacion_gps TEXT;
+```
+
+Cada sentencia debe ejecutarse únicamente si la columna todavía no existe
+(SQLite no admite `ADD COLUMN IF NOT EXISTS`). La aplicación hace esa comprobación
+automáticamente al iniciar. Si una instalación anterior tiene columnas legacy
+`latitud`/`longitud`, la aplicación copia sus valores a los nombres nuevos sin
+sobrescribir coordenadas ya existentes.
+
 **Importante:** `rapido_express.db` está en `.gitignore` — cada persona tiene su propia base de datos local, independiente de la de los demás. Si cada quien corre su propio servidor, no van a ver los mismos pedidos/clientes que el resto del equipo.
 
 ## 2. Trabajar todos sobre los mismos datos (recomendado para pruebas en equipo)
