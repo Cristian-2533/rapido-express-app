@@ -807,11 +807,9 @@ def obtener_pedido_por_id(id_pedido: int, actual: dict = Depends(usuario_actual)
 def actualizar_estado_pedido(
     id_pedido: int, datos: ActualizarEstado, actual: dict = Depends(usuario_actual)
 ):
-    exigir_rol(actual, "repartidor", "administrador")
     exigir_rol(actual, "repartidor", "administrador", "cliente")
     
     with conectar_db() as db:
-        if not db.execute("SELECT 1 FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone():
         pedido = db.execute("SELECT id_cliente FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone()
         if not pedido:
             raise HTTPException(status_code=404, detail="El domicilio no existe.")
