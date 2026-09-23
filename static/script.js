@@ -1,8 +1,6 @@
 const API_URL = window.location.origin;
-const usuario = JSON.parse(
-    sessionStorage.getItem("usuario") || localStorage.getItem("usuario") || "null"
-);
-const token = sessionStorage.getItem("token") || localStorage.getItem("token") || "";
+const usuario = JSON.parse(sessionStorage.getItem("usuario") || "null");
+const token = sessionStorage.getItem("token") || "";
 
 function headers() {
     const base = { "Content-Type": "application/json" };
@@ -37,8 +35,6 @@ async function api(path, options = {}) {
 function cerrarSesion() {
     sessionStorage.removeItem("usuario");
     sessionStorage.removeItem("token");
-    localStorage.removeItem("usuario");
-    localStorage.removeItem("token");
     window.location.href = "login.html";
 }
 function protegerVista(rol) {

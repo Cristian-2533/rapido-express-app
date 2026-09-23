@@ -1,15 +1,19 @@
-from datetime import datetime, timezone
-from pathlib import Path
 import base64
 import csv
 import hashlib
 import hmac
 import io
+import logging
 import os
+import secrets
 import sqlite3
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal, Optional
 
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -17,15 +21,23 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
+logging.basicConfig(level=logging.INFO)
+
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 DATABASE_PATH = Path(os.getenv("RAPIDO_EXPRESS_DB", BASE_DIR / "rapido_express.db"))
-SECRET_KEY = os.getenv("RAPIDO_EXPRESS_SECRET", "cambia-esta-clave-en-produccion").encode()
-if not os.getenv("RAPIDO_EXPRESS_SECRET"):
+
+SECRET_KEY = os.getenv("RAPIDO_EXPRESS_SECRET")
+if not SECRET_KEY:
+    if os.getenv("APP_ENV") == "production":
+        raise RuntimeError("RAPIDO_EXPRESS_SECRET debe estar definido en producción.")
+    SECRET_KEY = secrets.token_hex(32)
     print(
-        "ADVERTENCIA: RAPIDO_EXPRESS_SECRET no está definida; usando una clave de solo-desarrollo. "
+        "ADVERTENCIA: RAPIDO_EXPRESS_SECRET no está definida; se generó una clave aleatoria de desarrollo. "
         "Defínela como variable de entorno antes de exponer este servidor a otras personas."
     )
+SECRET_KEY_BYTES = SECRET_KEY.encode()
+PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=1)
 TOKEN_TTL_SECONDS = 8 * 60 * 60
 ESTADOS_PEDIDO = ["Pendiente", "Asignado", "En camino", "Entregado", "Cancelado"]
 PORCENTAJE_REPARTIDOR = float(os.getenv("RAPIDO_EXPRESS_COMISION_REPARTIDOR", "0.70"))
@@ -41,7 +53,23 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 def manejador_errores_no_controlados(request: Request, exc: Exception) -> JSONResponse:
+    logging.exception("Error no controlado en %s", request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
+
+
+def hash_password(password: str) -> str:
+    return PASSWORD_HASHER.hash(password)
+
+
+def verificar_password(password: str, stored_hash: str) -> bool:
+    try:
+        if stored_hash.startswith("$argon2"):
+            return PASSWORD_HASHER.verify(stored_hash, password)
+    except VerifyMismatchError:
+        return False
+    except Exception:
+        return False
+    return hmac.compare_digest(stored_hash, hashlib.sha256(password.encode()).hexdigest())
 
 
 def conectar_db() -> sqlite3.Connection:
@@ -114,7 +142,7 @@ def inicializar_db() -> None:
         )
         _migrar_perfiles_usuario(db)
         if db.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone() is None:
-            password = hashlib.sha256("12345678".encode()).hexdigest()
+            password = hash_password("12345678")
             db.execute(
                 "INSERT INTO usuarios (nombre, correo, password_hash, rol) VALUES (?, ?, ?, ?)",
                 ("Administrador", "operaciones@rapidoexpress.com", password, "administrador"),
@@ -325,7 +353,7 @@ class NuevaPassword(BaseModel):
 def generar_token(id_usuario: int, rol: str) -> str:
     expira = int(time.time()) + TOKEN_TTL_SECONDS
     payload = f"{id_usuario}:{rol}:{expira}"
-    firma = hmac.new(SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()
+    firma = hmac.new(SECRET_KEY_BYTES, payload.encode(), hashlib.sha256).hexdigest()
     return base64.urlsafe_b64encode(payload.encode()).decode() + "." + firma
 
 
@@ -333,7 +361,7 @@ def verificar_token(token: str) -> dict:
     try:
         payload_b64, firma = token.split(".", 1)
         payload = base64.urlsafe_b64decode(payload_b64.encode()).decode()
-        firma_esperada = hmac.new(SECRET_KEY, payload.encode(), hashlib.sha256).hexdigest()
+        firma_esperada = hmac.new(SECRET_KEY_BYTES, payload.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(firma, firma_esperada):
             raise ValueError("Firma inválida")
         id_usuario_str, rol, expira_str = payload.split(":", 2)
@@ -481,8 +509,7 @@ def login(datos: LoginRequest):
             "WHERE correo = ? AND rol = ? AND activo = 1",
             (datos.correo, datos.rol),
         ).fetchone()
-    password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
-    if not usuario or not hmac.compare_digest(usuario["password_hash"], password_hash):
+    if not usuario or not verificar_password(datos.password, usuario["password_hash"]):
         raise HTTPException(status_code=401, detail="Correo, contraseña o rol inválidos.")
     return {
         "token": generar_token(usuario["id_usuario"], usuario["rol"]),
@@ -498,7 +525,7 @@ def login(datos: LoginRequest):
 @app.post("/clientes/")
 def crear_cliente(datos: RegistroCliente, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador")
-    password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+    password_hash = hash_password(datos.password)
     with conectar_db() as db:
         if db.execute("SELECT 1 FROM usuarios WHERE correo = ?", (datos.correo,)).fetchone():
             raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo.")
@@ -566,7 +593,7 @@ def resetear_password_cliente(id_cliente: int, datos: NuevaPassword, actual: dic
             raise HTTPException(status_code=404, detail="El cliente no existe.")
         if not cliente["id_usuario"]:
             raise HTTPException(status_code=400, detail="Este cliente no tiene una cuenta de acceso asociada.")
-        password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+        password_hash = hash_password(datos.password)
         db.execute(
             "UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?",
             (password_hash, cliente["id_usuario"]),
@@ -850,7 +877,7 @@ def actualizar_disponibilidad(
 def _crear_cuenta_repartidor(db: sqlite3.Connection, datos: RegistroRepartidor) -> int:
     if db.execute("SELECT 1 FROM usuarios WHERE correo = ?", (datos.correo,)).fetchone():
         raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo.")
-    password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+    password_hash = hash_password(datos.password)
     id_usuario = db.execute(
         "INSERT INTO usuarios (nombre, correo, password_hash, rol) VALUES (?, ?, ?, 'repartidor')",
         (datos.nombre, datos.correo, password_hash),
@@ -872,7 +899,7 @@ def _crear_cuenta_repartidor(db: sqlite3.Connection, datos: RegistroRepartidor) 
 def _crear_cuenta_cliente(db: sqlite3.Connection, datos: RegistroCliente) -> int:
     if db.execute("SELECT 1 FROM usuarios WHERE correo = ?", (datos.correo,)).fetchone():
         raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo.")
-    password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+    password_hash = hash_password(datos.password)
     id_usuario = db.execute(
         "INSERT INTO usuarios (nombre, correo, password_hash, rol) VALUES (?, ?, ?, 'cliente')",
         (datos.nombre, datos.correo, password_hash),
@@ -947,7 +974,7 @@ def resetear_password_repartidor(id_repartidor: int, datos: NuevaPassword, actua
         ).fetchone()
         if not repartidor:
             raise HTTPException(status_code=404, detail="El repartidor no existe.")
-        password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+        password_hash = hash_password(datos.password)
         db.execute(
             "UPDATE usuarios SET password_hash = ? WHERE id_usuario = ?",
             (password_hash, repartidor["id_usuario"]),
