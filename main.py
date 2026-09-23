@@ -88,7 +88,9 @@ def inicializar_db() -> None:
                 id_cliente INTEGER NOT NULL,
                 id_repartidor INTEGER,
                 direccion_recogida TEXT NOT NULL,
+                nombre_local_recogida TEXT,
                 direccion_entrega TEXT NOT NULL,
+                hora_recogida_programada TEXT,
                 fecha_hora TEXT NOT NULL,
                 valor_servicio REAL NOT NULL CHECK (valor_servicio >= 0),
                 metodo_pago TEXT NOT NULL,
@@ -180,6 +182,15 @@ def _migrar_perfiles_usuario(db: sqlite3.Connection) -> None:
     if "placa_vehiculo" not in columnas:
         db.execute("ALTER TABLE repartidores ADD COLUMN placa_vehiculo TEXT")
 
+    pedidos = {
+        fila["name"]
+        for fila in db.execute("PRAGMA table_info(pedidos)").fetchall()
+    }
+    if "nombre_local_recogida" not in pedidos:
+        db.execute("ALTER TABLE pedidos ADD COLUMN nombre_local_recogida TEXT")
+    if "hora_recogida_programada" not in pedidos:
+        db.execute("ALTER TABLE pedidos ADD COLUMN hora_recogida_programada TEXT")
+
     # Compatibilidad con una instalación que hubiera creado los nombres antiguos.
     if "latitud" in columnas:
         db.execute(
@@ -254,11 +265,24 @@ class Pedido(BaseModel):
     id_cliente: int
     id_repartidor: Optional[int] = None
     direccion_recogida: str = Field(min_length=3)
+    nombre_local_recogida: Optional[str] = None
     direccion_entrega: str = Field(min_length=3)
+    hora_recogida_programada: Optional[str] = None
     valor_servicio: float = Field(ge=0)
     metodo_pago: str = Field(min_length=2)
     tiempo_espera_min: Optional[int] = Field(default=None, ge=0)
     tiempo_recogida_min: Optional[int] = Field(default=None, ge=0)
+    observaciones: str = ""
+
+
+class PedidoCliente(BaseModel):
+    nombre_local_recogida: str = Field(min_length=2)
+    direccion_recogida: str = Field(min_length=3)
+    direccion_entrega: str = Field(min_length=3)
+    hora_recogida_programada: Optional[str] = None
+    valor_servicio: float = Field(default=0, ge=0)
+    metodo_pago: str = Field(default="Efectivo", min_length=2)
+    tiempo_espera_min: Optional[int] = Field(default=None, ge=0)
     observaciones: str = ""
 
 
@@ -472,7 +496,8 @@ def login(datos: LoginRequest):
 
 
 @app.post("/clientes/")
-def crear_cliente(datos: RegistroCliente):
+def crear_cliente(datos: RegistroCliente, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "administrador")
     password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
     with conectar_db() as db:
         if db.execute("SELECT 1 FROM usuarios WHERE correo = ?", (datos.correo,)).fetchone():
@@ -620,18 +645,69 @@ def crear_pedido(pedido: Pedido, actual: dict = Depends(usuario_actual)):
             """
             INSERT INTO pedidos
             (id_cliente, id_repartidor, direccion_recogida, direccion_entrega, fecha_hora,
-             valor_servicio, metodo_pago, estado, tiempo_espera_min, tiempo_recogida_min, observaciones)
-            VALUES (?, NULL, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?)
+             nombre_local_recogida, hora_recogida_programada, valor_servicio, metodo_pago,
+             estado, tiempo_espera_min, tiempo_recogida_min, observaciones)
+            VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?, ?)
             """,
             (
                 pedido.id_cliente, pedido.direccion_recogida, pedido.direccion_entrega,
-                datetime.now().isoformat(timespec="seconds"), pedido.valor_servicio,
-                pedido.metodo_pago, pedido.tiempo_espera_min, pedido.tiempo_recogida_min,
-                pedido.observaciones,
+                datetime.now().isoformat(timespec="seconds"), pedido.nombre_local_recogida,
+                pedido.hora_recogida_programada, pedido.valor_servicio, pedido.metodo_pago,
+                pedido.tiempo_espera_min, pedido.tiempo_recogida_min, pedido.observaciones,
             ),
         )
         _registrar_historial(db, cursor.lastrowid, "Pendiente", actual["id_usuario"])
     return {"mensaje": "Domicilio registrado con éxito.", "id_pedido": cursor.lastrowid, "estado": "Pendiente"}
+
+
+def _cliente_id_del_usuario(db: sqlite3.Connection, id_usuario: int) -> int:
+    cliente = db.execute(
+        "SELECT id_cliente FROM clientes WHERE id_usuario = ?",
+        (id_usuario,),
+    ).fetchone()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="No existe un perfil de cliente.")
+    return cliente["id_cliente"]
+
+
+@app.post("/clientes/me/pedidos")
+def crear_pedido_cliente(
+    pedido: PedidoCliente, actual: dict = Depends(usuario_actual)
+):
+    exigir_rol(actual, "cliente")
+    with conectar_db() as db:
+        id_cliente = _cliente_id_del_usuario(db, actual["id_usuario"])
+        cursor = db.execute(
+            """
+            INSERT INTO pedidos
+                (id_cliente, id_repartidor, direccion_recogida,
+                 nombre_local_recogida, direccion_entrega, fecha_hora,
+                 hora_recogida_programada, valor_servicio, metodo_pago,
+                 estado, tiempo_espera_min, observaciones)
+            VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 'Pendiente', ?, ?)
+            """,
+            (
+                id_cliente, pedido.direccion_recogida, pedido.nombre_local_recogida,
+                pedido.direccion_entrega, datetime.now().isoformat(timespec="seconds"),
+                pedido.hora_recogida_programada, pedido.valor_servicio, pedido.metodo_pago,
+                pedido.tiempo_espera_min, pedido.observaciones,
+            ),
+        )
+        _registrar_historial(db, cursor.lastrowid, "Pendiente", actual["id_usuario"])
+    return {
+        "mensaje": "Solicitud creada. El administrador asignará un domiciliario.",
+        "id_pedido": cursor.lastrowid,
+        "estado": "Pendiente",
+    }
+
+
+@app.get("/clientes/me/pedidos")
+def obtener_pedidos_cliente(actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "cliente")
+    with conectar_db() as db:
+        id_cliente = _cliente_id_del_usuario(db, actual["id_usuario"])
+        pedidos = pedido_query(db, " WHERE p.id_cliente = ?", (id_cliente,))
+    return {"total_pedidos": len(pedidos), "pedidos": pedidos}
 
 
 @app.get("/pedidos/")

@@ -112,6 +112,15 @@
 
             <section class="glass-panel vista-panel" id="vista-clientes">
                 <h2 class="section-title"><i class="fa-solid fa-address-book"></i> Clientes registrados</h2>
+                <form id="formNuevoCliente" class="inline-form">
+                    <div class="form-group"><label for="cliNombre">Nombre completo</label><input id="cliNombre" class="form-control" required></div>
+                    <div class="form-group"><label for="cliCorreo">Correo</label><input type="email" id="cliCorreo" class="form-control" required></div>
+                    <div class="form-group"><label for="cliPassword">Contraseña temporal</label><input type="password" id="cliPassword" class="form-control" minlength="6" required></div>
+                    <div class="form-group"><label for="cliTelefono">Teléfono</label><input id="cliTelefono" class="form-control" required></div>
+                    <div class="form-group"><label for="cliDireccion">Dirección</label><input id="cliDireccion" class="form-control" required></div>
+                    <div class="form-group"><label for="cliLocal">Local (opcional)</label><input id="cliLocal" class="form-control"></div>
+                    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-user-plus"></i> Registrar cliente</button>
+                </form>
                 <div class="filter-bar">
                     <input type="search" id="buscarClientes" class="form-control" placeholder="Buscar por nombre, teléfono o correo...">
                 </div>

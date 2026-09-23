@@ -31,6 +31,22 @@
     </header>
 
     <div class="grid-container">
+        <div class="glass-panel">
+            <h2 class="section-title"><i class="fa-solid fa-box"></i> Solicitar domicilio</h2>
+            <form id="formNuevoPedidoCliente">
+                <div class="form-group"><label>Local donde se recoge *</label><input id="clienteLocalRecogida" class="form-control" required></div>
+                <div class="form-group"><label>Dirección de recogida *</label><input id="clienteDireccionRecogida" class="form-control" required></div>
+                <div class="form-group"><label>Dirección de entrega *</label><input id="clienteDireccionEntrega" class="form-control" required></div>
+                <div class="form-group"><label>Hora de recogida (opcional)</label><input type="datetime-local" id="clienteHoraRecogida" class="form-control"></div>
+                <div class="form-group"><label>Tiempo de espera (minutos)</label><input type="number" min="0" id="clienteTiempoEspera" class="form-control"></div>
+                <div class="form-group"><label>Observaciones</label><textarea id="clienteObservaciones" class="form-control"></textarea></div>
+                <button type="submit" class="btn btn-primary">Solicitar domicilio</button>
+            </form>
+        </div>
+        <div class="glass-panel">
+            <h2 class="section-title"><i class="fa-solid fa-list-check"></i> Mis domicilios</h2>
+            <div id="contenedorPedidosCliente" class="orders-grid"></div>
+        </div>
         <!-- Panel Izquierdo: Gestión de Pedidos -->
         <div class="glass-panel">
             <h2 class="section-title"><i class="fa-solid fa-magnifying-glass"></i> Consultar y Gestionar Pedido</h2>

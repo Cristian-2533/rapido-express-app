@@ -115,8 +115,9 @@ async function cargarClientes() {
         `<option value="${client.id_cliente}">${escapeHtml(client.nombre)} - ${escapeHtml(client.telefono)}</option>`).join("");
 }
 function detallePedido(pedido) {
-    return `<p><strong>Cliente:</strong> ${escapeHtml(pedido.cliente)} (${escapeHtml(pedido.telefono_cliente)}, ${escapeHtml(pedido.correo_cliente)})</p>
-        <p><strong>Recogida:</strong> ${escapeHtml(pedido.direccion_recogida)}</p>
+    return `<p><strong>Cliente:</strong> ${escapeHtml(pedido.cliente || "Solicitud propia")} ${pedido.telefono_cliente ? `(${escapeHtml(pedido.telefono_cliente)}, ${escapeHtml(pedido.correo_cliente)})` : ""}</p>
+        <p><strong>Local de recogida:</strong> ${escapeHtml(pedido.nombre_local_recogida || "No indicado")}</p>
+        <p><strong>Recogida:</strong> ${escapeHtml(pedido.direccion_recogida)}${pedido.hora_recogida_programada ? ` · ${escapeHtml(pedido.hora_recogida_programada)}` : " · Lo antes posible"}</p>
         <p><strong>Entrega:</strong> ${escapeHtml(pedido.direccion_entrega)}</p>
         <p><strong>Servicio:</strong> ${dinero(pedido.valor_servicio)} · ${escapeHtml(pedido.metodo_pago)}</p>
         <p><strong>Espera:</strong> ${pedido.tiempo_espera_min ?? "No indicada"} min · <strong>Recogida:</strong> ${pedido.tiempo_recogida_min ?? "No indicado"} min</p>
@@ -260,6 +261,7 @@ async function verHistorialPedido(idPedido) {
 
 let paginaPedidos = 0;
 const LIMITE_PEDIDOS = 9;
+let pedidosPendientesConocidos = null;
 
 async function cargarPedidosAdmin(driversActivos) {
     const filtro = document.getElementById("filtroEstado")?.value || "";
@@ -268,6 +270,16 @@ async function cargarPedidosAdmin(driversActivos) {
     if (filtro) parametros.set("estado", filtro);
     if (busqueda) parametros.set("q", busqueda);
     const pedidos = await api(`/pedidos/?${parametros.toString()}`);
+    const pendientesActuales = new Set(
+        pedidos.pedidos.filter((pedido) => pedido.estado === "Pendiente").map((pedido) => pedido.id_pedido)
+    );
+    if (pedidosPendientesConocidos) {
+        const nuevos = pedidos.pedidos.filter(
+            (pedido) => pedido.estado === "Pendiente" && !pedidosPendientesConocidos.has(pedido.id_pedido)
+        );
+        nuevos.forEach((pedido) => notificar("Nueva solicitud", `El cliente solicitó el domicilio #${pedido.id_pedido}.`));
+    }
+    pedidosPendientesConocidos = pendientesActuales;
     const driverOptions = driversActivos.map((driver) =>
         `<option value="${driver.id_repartidor}">${escapeHtml(driver.nombre)} - ${escapeHtml(driver.zona || "Sin zona")}</option>`).join("");
     document.getElementById("contenedorPedidos").innerHTML = pedidos.pedidos.length
@@ -434,6 +446,8 @@ function iniciarMapaFlota() {
 
 async function iniciarAdmin() {
     if (!protegerVista("administrador")) return;
+    pedirPermisoNotificaciones();
+    if (!window.intervaloAdmin) window.intervaloAdmin = setInterval(() => cargarAdmin().catch(() => {}), 15000);
     iniciarMapaFlota();
     try { await cargarClientes(); await cargarAdmin(); await cargarClientesAdmin(); await cargarGanancias(); } catch (error) { alert(error.message); }
     document.getElementById("fechaGanancias")?.addEventListener("change", () => cargarGanancias().catch((error) => alert(error.message)));
@@ -488,6 +502,20 @@ async function iniciarAdmin() {
             event.target.reset(); await cargarAdmin(); alert("Domiciliario creado.");
         } catch (error) { alert(error.message); }
     });
+    document.getElementById("formNuevoCliente")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const value = (id) => document.getElementById(id).value;
+        try {
+            await api("/clientes/", { method: "POST", body: JSON.stringify({
+                nombre: value("cliNombre").trim(), correo: value("cliCorreo").trim(),
+                password: value("cliPassword"), telefono: value("cliTelefono").trim(),
+                direccion: value("cliDireccion").trim(),
+                nombre_local: value("cliLocal").trim() || null,
+            })});
+            event.target.reset(); await cargarClientesAdmin(); await cargarClientes();
+            alert("Cliente registrado. Entrégale su contraseña temporal.");
+        } catch (error) { alert(error.message); }
+    });
 }
 
 function notificarNuevoDomicilio(pedido) {
@@ -532,6 +560,47 @@ async function iniciarRepartidor() {
 
 async function iniciarCliente() {
     if (!protegerVista("cliente")) return;
+    pedirPermisoNotificaciones();
+    let pedidosClienteConocidos = null;
+    const cargarMisPedidos = async () => {
+        const data = await api("/clientes/me/pedidos");
+        const cambios = [];
+        if (pedidosClienteConocidos) {
+            data.pedidos.forEach((pedido) => {
+                const anterior = pedidosClienteConocidos.get(pedido.id_pedido);
+                if (anterior && (anterior.estado !== pedido.estado || anterior.repartidor !== pedido.repartidor)) {
+                    cambios.push(pedido);
+                }
+            });
+        }
+        pedidosClienteConocidos = new Map(data.pedidos.map((pedido) => [pedido.id_pedido, pedido]));
+        const contenedor = document.getElementById("contenedorPedidosCliente");
+        if (contenedor) {
+            contenedor.innerHTML = data.pedidos.length
+                ? data.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(pedido.estado)}">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}<p><strong>Domiciliario:</strong> ${escapeHtml(pedido.repartidor || "Pendiente de asignación")}</p></div></article>`).join("")
+                : "<p>No tienes domicilios registrados.</p>";
+        }
+        cambios.forEach((pedido) => notificar("Actualización de domicilio", `El domicilio #${pedido.id_pedido} ahora está ${pedido.estado}.`));
+    };
+    cargarMisPedidos().catch((error) => alert(error.message));
+    if (!window.intervaloCliente) window.intervaloCliente = setInterval(() => cargarMisPedidos().catch(() => {}), 15000);
+    document.getElementById("formNuevoPedidoCliente")?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const value = (id) => document.getElementById(id).value;
+        try {
+            await api("/clientes/me/pedidos", { method: "POST", body: JSON.stringify({
+                nombre_local_recogida: value("clienteLocalRecogida").trim(),
+                direccion_recogida: value("clienteDireccionRecogida").trim(),
+                direccion_entrega: value("clienteDireccionEntrega").trim(),
+                hora_recogida_programada: value("clienteHoraRecogida") || null,
+                tiempo_espera_min: value("clienteTiempoEspera") ? Number(value("clienteTiempoEspera")) : null,
+                observaciones: value("clienteObservaciones").trim(),
+            })});
+            event.target.reset();
+            await cargarMisPedidos();
+            alert("Solicitud enviada al administrador.");
+        } catch (error) { alert(error.message); }
+    });
     let ultimoPedidoConsultado = null;
     document.getElementById("formConsultaPedido")?.addEventListener("submit", async (event) => {
         event.preventDefault();

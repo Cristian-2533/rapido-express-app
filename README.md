@@ -55,6 +55,19 @@ son obligatorias al crear nuevas cuentas. El endpoint unificado
 `POST /registro` recibe `tipo_usuario` (`cliente` o `repartidor`) y aplica la
 validación correspondiente.
 
+Para permitir que los clientes indiquen el local y la hora de recogida, la
+migración de pedidos es:
+
+```sql
+ALTER TABLE pedidos ADD COLUMN nombre_local_recogida TEXT;
+ALTER TABLE pedidos ADD COLUMN hora_recogida_programada TEXT;
+```
+
+La hora es opcional: cuando queda vacía, la solicitud significa “lo antes
+posible”. Los clientes crean domicilios desde `POST /clientes/me/pedidos`; el
+administrador los asigna desde el panel y el cliente y el repartidor reciben el
+cambio mediante actualización automática del panel.
+
 **Importante:** `rapido_express.db` está en `.gitignore` — cada persona tiene su propia base de datos local, independiente de la de los demás. Si cada quien corre su propio servidor, no van a ver los mismos pedidos/clientes que el resto del equipo.
 
 ## 2. Trabajar todos sobre los mismos datos (recomendado para pruebas en equipo)
