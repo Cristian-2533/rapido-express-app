@@ -96,9 +96,25 @@
                         <label for="regPassword">Contraseña *</label>
                         <div class="input-wrapper"><i class="fa-solid fa-lock"></i><input type="password" id="regPassword" placeholder="Mínimo 6 caracteres" minlength="6" required></div>
                     </div>
+                    <div class="input-group" id="grupoRegDireccion">
+                        <label for="regDireccion">Dirección de entrega *</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-location-dot"></i><input type="text" id="regDireccion" placeholder="Dirección donde recibes tus pedidos" required></div>
+                    </div>
+                    <div class="input-group" id="grupoRegLocal">
+                        <label for="regNombreLocal">Nombre del negocio/local (opcional)</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-store"></i><input type="text" id="regNombreLocal" placeholder="Ej: Tienda La Esquina"></div>
+                    </div>
                     <div class="input-group" id="grupoRegZona" style="display:none;">
                         <label for="regZona">Zona de trabajo</label>
                         <div class="input-wrapper"><i class="fa-solid fa-map-location-dot"></i><input type="text" id="regZona" placeholder="Ej: Zona norte"></div>
+                    </div>
+                    <div class="input-group" id="grupoRegVehiculo" style="display:none;">
+                        <label for="regTipoVehiculo">Tipo de vehículo *</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-motorcycle"></i><select id="regTipoVehiculo"><option value="moto">Moto</option><option value="bicicleta">Bicicleta</option><option value="auto">Auto</option></select></div>
+                    </div>
+                    <div class="input-group" id="grupoRegPlaca" style="display:none;">
+                        <label for="regPlacaVehiculo">Placa del vehículo *</label>
+                        <div class="input-wrapper"><i class="fa-solid fa-id-card"></i><input type="text" id="regPlacaVehiculo" placeholder="Ej: ABC123"></div>
                     </div>
                     <button type="submit" class="btn-submit">Registrarse</button>
                 </form>

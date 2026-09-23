@@ -40,6 +40,21 @@ automáticamente al iniciar. Si una instalación anterior tiene columnas legacy
 `latitud`/`longitud`, la aplicación copia sus valores a los nombres nuevos sin
 sobrescribir coordenadas ya existentes.
 
+Para las nuevas propiedades de perfiles, la migración manual es:
+
+```sql
+ALTER TABLE clientes ADD COLUMN direccion TEXT;
+ALTER TABLE clientes ADD COLUMN nombre_local TEXT;
+ALTER TABLE repartidores ADD COLUMN tipo_vehiculo TEXT NOT NULL DEFAULT 'moto';
+ALTER TABLE repartidores ADD COLUMN placa_vehiculo TEXT;
+```
+
+Las columnas de perfiles se agregan como compatibles con datos históricos:
+`direccion` y `placa_vehiculo` pueden quedar vacías en registros antiguos, pero
+son obligatorias al crear nuevas cuentas. El endpoint unificado
+`POST /registro` recibe `tipo_usuario` (`cliente` o `repartidor`) y aplica la
+validación correspondiente.
+
 **Importante:** `rapido_express.db` está en `.gitignore` — cada persona tiene su propia base de datos local, independiente de la de los demás. Si cada quien corre su propio servidor, no van a ver los mismos pedidos/clientes que el resto del equipo.
 
 ## 2. Trabajar todos sobre los mismos datos (recomendado para pruebas en equipo)

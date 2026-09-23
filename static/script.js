@@ -482,6 +482,8 @@ async function iniciarAdmin() {
                 nombre: value("repNombre").trim(), correo: value("repCorreo").trim(),
                 password: value("repPassword"), telefono: value("repTelefono").trim(),
                 zona: value("repZona").trim(),
+                tipo_vehiculo: value("repTipoVehiculo"),
+                placa_vehiculo: value("repPlacaVehiculo").trim().toUpperCase(),
             })});
             event.target.reset(); await cargarAdmin(); alert("Domiciliario creado.");
         } catch (error) { alert(error.message); }

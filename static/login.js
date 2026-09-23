@@ -39,9 +39,24 @@ document.addEventListener("DOMContentLoaded", () => {
         loginView.style.display = "block";
     });
     const grupoZona = document.getElementById("grupoRegZona");
-    document.querySelectorAll('input[name="regRol"]').forEach((radio) => radio.addEventListener("change", () => {
-        grupoZona.style.display = radio.value === "repartidor" ? "block" : "none";
-    }));
+    const grupoDireccion = document.getElementById("grupoRegDireccion");
+    const grupoLocal = document.getElementById("grupoRegLocal");
+    const grupoVehiculo = document.getElementById("grupoRegVehiculo");
+    const grupoPlaca = document.getElementById("grupoRegPlaca");
+    const direccion = document.getElementById("regDireccion");
+    const placa = document.getElementById("regPlacaVehiculo");
+    function actualizarCamposRegistro() {
+        const esRepartidor = document.querySelector('input[name="regRol"]:checked').value === "repartidor";
+        grupoZona.style.display = esRepartidor ? "block" : "none";
+        grupoVehiculo.style.display = esRepartidor ? "block" : "none";
+        grupoPlaca.style.display = esRepartidor ? "block" : "none";
+        grupoDireccion.style.display = esRepartidor ? "none" : "block";
+        grupoLocal.style.display = esRepartidor ? "none" : "block";
+        direccion.required = !esRepartidor;
+        placa.required = esRepartidor;
+    }
+    document.querySelectorAll('input[name="regRol"]').forEach((radio) => radio.addEventListener("change", actualizarCamposRegistro));
+    actualizarCamposRegistro();
     loginForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const button = loginForm.querySelector("button[type=submit]");
@@ -74,14 +89,22 @@ document.addEventListener("DOMContentLoaded", () => {
     registerForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const rolElegido = document.querySelector('input[name="regRol"]:checked').value;
-        const endpoint = rolElegido === "repartidor" ? "/repartidores/registro" : "/clientes/";
+        const endpoint = "/registro";
         const payload = {
+            tipo_usuario: rolElegido,
             nombre: document.getElementById("regNombre").value.trim(),
             telefono: document.getElementById("regTelefono").value.trim(),
             correo: document.getElementById("regCorreo").value.trim(),
             password: document.getElementById("regPassword").value,
         };
-        if (rolElegido === "repartidor") payload.zona = document.getElementById("regZona").value.trim();
+        if (rolElegido === "repartidor") {
+            payload.zona = document.getElementById("regZona").value.trim();
+            payload.tipo_vehiculo = document.getElementById("regTipoVehiculo").value;
+            payload.placa_vehiculo = placa.value.trim().toUpperCase();
+        } else {
+            payload.direccion = direccion.value.trim();
+            payload.nombre_local = document.getElementById("regNombreLocal").value.trim() || null;
+        }
         try {
             const response = await fetch(`${API_URL}${endpoint}`, {
                 method: "POST",

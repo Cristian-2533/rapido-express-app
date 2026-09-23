@@ -8,13 +8,13 @@ import io
 import os
 import sqlite3
 import time
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -69,6 +69,8 @@ def inicializar_db() -> None:
                 nombre TEXT NOT NULL,
                 telefono TEXT NOT NULL,
                 correo TEXT NOT NULL,
+                direccion TEXT,
+                nombre_local TEXT,
                 FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
             );
             CREATE TABLE IF NOT EXISTS repartidores (
@@ -77,6 +79,8 @@ def inicializar_db() -> None:
                 telefono TEXT NOT NULL,
                 disponible INTEGER NOT NULL DEFAULT 1,
                 zona TEXT NOT NULL DEFAULT '',
+                tipo_vehiculo TEXT NOT NULL DEFAULT 'moto',
+                placa_vehiculo TEXT,
                 FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
             );
             CREATE TABLE IF NOT EXISTS pedidos (
@@ -106,7 +110,7 @@ def inicializar_db() -> None:
             );
             """
         )
-        _migrar_gps_repartidores(db)
+        _migrar_perfiles_usuario(db)
         if db.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone() is None:
             password = hashlib.sha256("12345678".encode()).hexdigest()
             db.execute(
@@ -126,12 +130,19 @@ def inicializar_db() -> None:
                 ("juanito@rapidoexpress.com",),
             ).fetchone()
             db.execute(
-                "INSERT INTO repartidores (id_usuario, telefono, disponible, zona) VALUES (?, ?, 1, ?)",
-                (driver_user["id_usuario"], "3000000000", "Zona norte"),
+                """
+                INSERT INTO repartidores
+                    (id_usuario, telefono, disponible, zona, tipo_vehiculo, placa_vehiculo)
+                VALUES (?, ?, 1, ?, ?, ?)
+                """,
+                (driver_user["id_usuario"], "3000000000", "Zona norte", "moto", "DEMO123"),
             )
             db.execute(
-                "INSERT INTO clientes (nombre, telefono, correo) VALUES (?, ?, ?)",
-                ("Cliente demo", "3100000000", "cliente@rapidoexpress.com"),
+                """
+                INSERT INTO clientes (nombre, telefono, correo, direccion, nombre_local)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                ("Cliente demo", "3100000000", "cliente@rapidoexpress.com", "Calle 1 # 1-1", None),
             )
             client_user = db.execute(
                 "SELECT id_usuario FROM usuarios WHERE correo = ?",
@@ -143,8 +154,17 @@ def inicializar_db() -> None:
             )
 
 
-def _migrar_gps_repartidores(db: sqlite3.Connection) -> None:
-    """Añade el esquema GPS sin reconstruir la tabla ni perder datos."""
+def _migrar_perfiles_usuario(db: sqlite3.Connection) -> None:
+    """Añade GPS y campos de perfil sin reconstruir tablas ni perder datos."""
+    clientes = {
+        fila["name"]
+        for fila in db.execute("PRAGMA table_info(clientes)").fetchall()
+    }
+    if "direccion" not in clientes:
+        db.execute("ALTER TABLE clientes ADD COLUMN direccion TEXT")
+    if "nombre_local" not in clientes:
+        db.execute("ALTER TABLE clientes ADD COLUMN nombre_local TEXT")
+
     columnas = {
         fila["name"]
         for fila in db.execute("PRAGMA table_info(repartidores)").fetchall()
@@ -155,6 +175,10 @@ def _migrar_gps_repartidores(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE repartidores ADD COLUMN longitude REAL")
     if "ultima_actualizacion_gps" not in columnas:
         db.execute("ALTER TABLE repartidores ADD COLUMN ultima_actualizacion_gps TEXT")
+    if "tipo_vehiculo" not in columnas:
+        db.execute("ALTER TABLE repartidores ADD COLUMN tipo_vehiculo TEXT NOT NULL DEFAULT 'moto'")
+    if "placa_vehiculo" not in columnas:
+        db.execute("ALTER TABLE repartidores ADD COLUMN placa_vehiculo TEXT")
 
     # Compatibilidad con una instalación que hubiera creado los nombres antiguos.
     if "latitud" in columnas:
@@ -191,6 +215,8 @@ class RegistroCliente(BaseModel):
     telefono: str = Field(min_length=7)
     correo: str
     password: str = Field(min_length=6)
+    direccion: str = Field(min_length=5)
+    nombre_local: Optional[str] = None
 
 
 class RegistroRepartidor(BaseModel):
@@ -199,6 +225,29 @@ class RegistroRepartidor(BaseModel):
     correo: str
     password: str = Field(min_length=6)
     zona: str = ""
+    tipo_vehiculo: Literal["moto", "bicicleta", "auto"] = "moto"
+    placa_vehiculo: str = Field(min_length=3)
+
+
+class RegistroUsuario(BaseModel):
+    tipo_usuario: Literal["cliente", "repartidor"]
+    nombre: str = Field(min_length=2)
+    telefono: str = Field(min_length=7)
+    correo: str
+    password: str = Field(min_length=6)
+    direccion: Optional[str] = None
+    nombre_local: Optional[str] = None
+    zona: str = ""
+    tipo_vehiculo: Literal["moto", "bicicleta", "auto"] = "moto"
+    placa_vehiculo: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validar_datos_por_rol(self) -> "RegistroUsuario":
+        if self.tipo_usuario == "cliente" and not self.direccion:
+            raise ValueError("La dirección es obligatoria para clientes.")
+        if self.tipo_usuario == "repartidor" and not self.placa_vehiculo:
+            raise ValueError("La placa del vehículo es obligatoria para repartidores.")
+        return self
 
 
 class Pedido(BaseModel):
@@ -433,8 +482,15 @@ def crear_cliente(datos: RegistroCliente):
             (datos.nombre, datos.correo, password_hash),
         ).lastrowid
         cursor = db.execute(
-            "INSERT INTO clientes (id_usuario, nombre, telefono, correo) VALUES (?, ?, ?, ?)",
-            (id_usuario, datos.nombre, datos.telefono, datos.correo),
+            """
+            INSERT INTO clientes
+                (id_usuario, nombre, telefono, correo, direccion, nombre_local)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                id_usuario, datos.nombre, datos.telefono, datos.correo,
+                datos.direccion, datos.nombre_local,
+            ),
         )
     return {"mensaje": "Cuenta creada con éxito. Ya puedes iniciar sesión.", "id_cliente": cursor.lastrowid}
 
@@ -724,10 +780,71 @@ def _crear_cuenta_repartidor(db: sqlite3.Connection, datos: RegistroRepartidor) 
         (datos.nombre, datos.correo, password_hash),
     ).lastrowid
     cursor = db.execute(
-        "INSERT INTO repartidores (id_usuario, telefono, disponible, zona) VALUES (?, ?, 1, ?)",
-        (id_usuario, datos.telefono, datos.zona),
+        """
+        INSERT INTO repartidores
+            (id_usuario, telefono, disponible, zona, tipo_vehiculo, placa_vehiculo)
+        VALUES (?, ?, 1, ?, ?, ?)
+        """,
+        (
+            id_usuario, datos.telefono, datos.zona,
+            datos.tipo_vehiculo, datos.placa_vehiculo,
+        ),
     )
     return cursor.lastrowid
+
+
+def _crear_cuenta_cliente(db: sqlite3.Connection, datos: RegistroCliente) -> int:
+    if db.execute("SELECT 1 FROM usuarios WHERE correo = ?", (datos.correo,)).fetchone():
+        raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo.")
+    password_hash = hashlib.sha256(datos.password.encode()).hexdigest()
+    id_usuario = db.execute(
+        "INSERT INTO usuarios (nombre, correo, password_hash, rol) VALUES (?, ?, ?, 'cliente')",
+        (datos.nombre, datos.correo, password_hash),
+    ).lastrowid
+    cursor = db.execute(
+        """
+        INSERT INTO clientes
+            (id_usuario, nombre, telefono, correo, direccion, nombre_local)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            id_usuario, datos.nombre, datos.telefono, datos.correo,
+            datos.direccion, datos.nombre_local,
+        ),
+    )
+    return cursor.lastrowid
+
+
+@app.post("/registro")
+def registrar_usuario(datos: RegistroUsuario):
+    if datos.tipo_usuario == "cliente":
+        cliente = RegistroCliente(
+            nombre=datos.nombre,
+            telefono=datos.telefono,
+            correo=datos.correo,
+            password=datos.password,
+            direccion=datos.direccion or "",
+            nombre_local=datos.nombre_local,
+        )
+        with conectar_db() as db:
+            id_cliente = _crear_cuenta_cliente(db, cliente)
+        return {"mensaje": "Cuenta de cliente creada con éxito.", "id_cliente": id_cliente}
+
+    repartidor = RegistroRepartidor(
+        nombre=datos.nombre,
+        telefono=datos.telefono,
+        correo=datos.correo,
+        password=datos.password,
+        zona=datos.zona,
+        tipo_vehiculo=datos.tipo_vehiculo,
+        placa_vehiculo=datos.placa_vehiculo or "",
+    )
+    with conectar_db() as db:
+        id_repartidor = _crear_cuenta_repartidor(db, repartidor)
+    return {
+        "mensaje": "Cuenta de repartidor creada con éxito.",
+        "id_repartidor": id_repartidor,
+    }
 
 
 @app.post("/repartidores/registro")
