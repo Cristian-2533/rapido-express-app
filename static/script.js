@@ -579,9 +579,7 @@ async function iniciarAdmin() {
     });
 }
 
-function notificarNuevoDomicilio(pedido) {
-    notificar("Nuevo domicilio asignado", `Domicilio #${pedido.id_pedido}: ${pedido.direccion_recogida} → ${pedido.direccion_entrega}`);
-}
+
 
 let intervaloRepartidor = null;
 let pedidosConocidosRepartidor = null;
