@@ -108,6 +108,13 @@ function mostrarToast(mensaje) {
     }, 5000);
 }
 
+function pedirPermisoNotificaciones() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "granted") return;
+    if (Notification.permission === "denied") return;
+    Notification.requestPermission().catch(() => {});
+}
+
 let notificacionesRepartidor = [];
 
 function agregarNotificacionRepartidor(pedido) {
