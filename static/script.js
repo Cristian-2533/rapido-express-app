@@ -380,7 +380,14 @@ async function cargarPedidosAdmin(driversActivos) {
     document.querySelectorAll(".btn-asignar").forEach((button) => button.addEventListener("click", async () => {
         const select = document.querySelector(`.selector-driver[data-id="${button.dataset.id}"]`);
         if (!select.value) return alert("Seleccione un domiciliario.");
-        try { await api(`/pedidos/${button.dataset.id}/asignar-repartidor`, { method: "PUT", body: JSON.stringify({ id_repartidor: Number(select.value) }) }); await cargarAdmin(); }
+        try {
+            const respuesta = await api(`/pedidos/${button.dataset.id}/asignar-repartidor`, {
+                method: "PUT",
+                body: JSON.stringify({ id_repartidor: Number(select.value) }),
+            });
+            await cargarAdmin();
+            notificar("Domicilio asignado", `El domicilio #${respuesta.pedido.id_pedido} fue asignado a ${respuesta.pedido.repartidor}.`);
+        }
         catch (error) { alert(error.message); }
     }));
     document.querySelectorAll(".btn-cancelar").forEach((button) => button.addEventListener("click", async () => {
@@ -531,7 +538,11 @@ function iniciarMapaFlota() {
 async function iniciarAdmin() {
     if (!protegerVista("administrador")) return;
     pedirPermisoNotificaciones();
-    if (!window.intervaloAdmin) window.intervaloAdmin = setInterval(() => cargarAdmin().catch(() => {}), 15000);
+    if (!window.intervaloAdmin) {
+        window.intervaloAdmin = setInterval(() => cargarAdmin().catch((error) => {
+            console.error("Error actualizando el panel administrativo:", error);
+        }), 15000);
+    }
     iniciarMapaFlota();
     try { await cargarClientes(); await cargarAdmin(); await cargarClientesAdmin(); await cargarGanancias(); } catch (error) { alert(error.message); }
     document.getElementById("fechaGanancias")?.addEventListener("change", () => cargarGanancias().catch((error) => alert(error.message)));
@@ -626,16 +637,14 @@ async function iniciarRepartidor() {
         intervaloRepartidor = setInterval(iniciarRepartidor, 15000);
     }
     try {
-        const data = await api("/repartidores/activos");
-        const own = data.repartidores.find((driver) => driver.id_usuario === usuario.id_usuario);
-        if (!own) throw new Error("No hay un perfil activo de domiciliario para este usuario.");
-        const ganancias = await api(`/repartidores/${own.id_repartidor}/ganancias`);
+        const data = await api("/repartidores/me/pedidos");
+        const ganancias = await api("/repartidores/me/ganancias");
         const contenedorGanancias = document.getElementById("contenedorGananciasPropias");
         if (contenedorGanancias) contenedorGanancias.innerHTML = `
             <div class="stat-card"><div class="stat-value">${ganancias.entregas}</div><div class="stat-label">Domicilios entregados hoy</div></div>
             <div class="stat-card"><div class="stat-value">${dinero(ganancias.comision_repartidor)}</div><div class="stat-label">Tu ganancia de hoy</div></div>
         `;
-        const assigned = await api(`/repartidores/${own.id_repartidor}/pedidos`);
+        const assigned = data;
         if (pedidosConocidosRepartidor) {
             assigned.pedidos
                 .filter((pedido) => !pedidosConocidosRepartidor.has(pedido.id_pedido))
@@ -676,7 +685,11 @@ async function iniciarCliente() {
         cambios.forEach((pedido) => notificar("Actualización de domicilio", `El domicilio #${pedido.id_pedido} ahora está ${pedido.estado}.`));
     };
     cargarMisPedidos().catch((error) => alert(error.message));
-    if (!window.intervaloCliente) window.intervaloCliente = setInterval(() => cargarMisPedidos().catch(() => {}), 15000);
+    if (!window.intervaloCliente) {
+        window.intervaloCliente = setInterval(() => cargarMisPedidos().catch((error) => {
+            console.error("Error actualizando los domicilios del cliente:", error);
+        }), 15000);
+    }
     document.getElementById("formNuevoPedidoCliente")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const value = (id) => document.getElementById(id).value;

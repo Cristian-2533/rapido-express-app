@@ -1040,7 +1040,16 @@ def asignar_repartidor_pedido(
             (datos.id_repartidor, id_pedido),
         )
         _registrar_historial(db, id_pedido, "Asignado", actual["id_usuario"])
-    return {"mensaje": "Domicilio asignado correctamente.", "nuevo_estado": "Asignado"}
+        pedido_asignado = pedido_query(
+            db,
+            " WHERE p.id_pedido = ?",
+            (id_pedido,),
+        )[0]
+    return {
+        "mensaje": "Domicilio asignado correctamente.",
+        "nuevo_estado": "Asignado",
+        "pedido": pedido_asignado,
+    }
 
 
 @app.delete("/pedidos/{id_pedido}")
@@ -1070,6 +1079,21 @@ def pedidos_del_repartidor(id_repartidor: int, actual: dict = Depends(usuario_ac
     return {"total_pedidos": len(pedidos), "pedidos": pedidos}
 
 
+@app.get("/repartidores/me/pedidos")
+def pedidos_del_repartidor_actual(actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "repartidor")
+    with conectar_db() as db:
+        driver = db.execute(
+            "SELECT id_repartidor FROM repartidores WHERE id_usuario = ? AND EXISTS "
+            "(SELECT 1 FROM usuarios WHERE id_usuario = ? AND activo = 1)",
+            (actual["id_usuario"], actual["id_usuario"]),
+        ).fetchone()
+        if not driver:
+            raise HTTPException(status_code=404, detail="No existe un perfil activo de domiciliario.")
+        pedidos = pedido_query(db, " WHERE p.id_repartidor = ?", (driver["id_repartidor"],))
+    return {"total_pedidos": len(pedidos), "pedidos": pedidos}
+
+
 @app.get("/repartidores/{id_repartidor}/ganancias")
 def ganancias_repartidor(id_repartidor: int, fecha: Optional[str] = None, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador", "repartidor")
@@ -1092,6 +1116,23 @@ def ganancias_repartidor(id_repartidor: int, fecha: Optional[str] = None, actual
         ).fetchone()
     return {"fecha": fecha, "entregas": fila["entregas"], "porcentaje_repartidor": PORCENTAJE_REPARTIDOR,
              **_desglosar_ganancia(fila["valor_total"])}
+
+
+@app.get("/repartidores/me/ganancias")
+def ganancias_repartidor_actual(
+    fecha: Optional[str] = None, actual: dict = Depends(usuario_actual)
+):
+    exigir_rol(actual, "repartidor")
+    with conectar_db() as db:
+        driver = db.execute(
+            "SELECT r.id_repartidor FROM repartidores r "
+            "JOIN usuarios u ON u.id_usuario = r.id_usuario "
+            "WHERE r.id_usuario = ? AND u.activo = 1",
+            (actual["id_usuario"],),
+        ).fetchone()
+    if not driver:
+        raise HTTPException(status_code=404, detail="No existe un perfil activo de domiciliario.")
+    return ganancias_repartidor(driver["id_repartidor"], fecha, actual)
 
 
 @app.get("/pedidos/{id_pedido}")
