@@ -373,7 +373,9 @@ async function cargarPedidosAdmin(driversActivos) {
                 <button class="btn-action btn-camino btn-asignar" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Asignar</button>
                 <button class="btn-action btn-editar btn-editar-pedido" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Editar</button>
                 <button class="btn-action btn-toggle-off btn-ver-historial" data-id="${pedido.id_pedido}">Historial</button>
+                ${pedido.evidencia_foto ? `<button class="btn-action btn-toggle-on btn-ver-foto" data-foto="${pedido.evidencia_foto}">📷 Ver Foto</button>` : ''}
                 <button class="btn-action btn-cancelar" data-id="${pedido.id_pedido}" ${bloqueado ? "disabled" : ""}>Cancelar</button>
+            </div>
             </div></article>`; }).join("")
         : "<p>No hay domicilios con ese filtro.</p>";
     renderPaginacion("paginacionPedidos", pedidos.total_pedidos, LIMITE_PEDIDOS, paginaPedidos, (nueva) => { paginaPedidos = nueva; cargarAdmin(); });
@@ -620,43 +622,65 @@ let pedidosConocidosRepartidor = null;
 
 async function iniciarRepartidor() {
     if (!protegerVista("repartidor")) return;
+    
     const btnNotificaciones = document.getElementById("btnNotificaciones");
     const panelNotificaciones = document.getElementById("panelNotificaciones");
 
     if (btnNotificaciones && panelNotificaciones && !btnNotificaciones.dataset.inicializado) {
-
-    btnNotificaciones.dataset.inicializado = "true";
-
-    btnNotificaciones.addEventListener("click", () => {
-        panelNotificaciones.classList.toggle("visible");
-    });
+        btnNotificaciones.dataset.inicializado = "true";
+        btnNotificaciones.addEventListener("click", () => {
+            panelNotificaciones.classList.toggle("visible");
+        });
     }
+
     if (!intervaloRepartidor) {
         pedirPermisoNotificaciones();
-        document.getElementById("btnActualizarPedidos")?.addEventListener("click", () => iniciarRepartidor());
-        intervaloRepartidor = setInterval(iniciarRepartidor, 15000);
+        document.getElementById("btnActualizarPedidos")?.addEventListener("click", () => cargarDatosRepartidor());
+        intervaloRepartidor = setInterval(cargarDatosRepartidor, 15000);
     }
+
+    await cargarDatosRepartidor();
+}
+
+// Función auxiliar para refrescar los datos periódicamente sin recrear eventos
+async function cargarDatosRepartidor() {
     try {
         const data = await api("/repartidores/me/pedidos");
         const ganancias = await api("/repartidores/me/ganancias");
+        
         const contenedorGanancias = document.getElementById("contenedorGananciasPropias");
-        if (contenedorGanancias) contenedorGanancias.innerHTML = `
-            <div class="stat-card"><div class="stat-value">${ganancias.entregas}</div><div class="stat-label">Domicilios entregados hoy</div></div>
-            <div class="stat-card"><div class="stat-value">${dinero(ganancias.comision_repartidor)}</div><div class="stat-label">Tu ganancia de hoy</div></div>
-        `;
-        const assigned = data;
-        const pedidosNuevos = assigned.pedidos.filter(
+        if (contenedorGanancias) {
+            contenedorGanancias.innerHTML = `
+                <div class="stat-card"><div class="stat-value">${ganancias.entregas}</div><div class="stat-label">Domicilios entregados hoy</div></div>
+                <div class="stat-card"><div class="stat-value">${dinero(ganancias.comision_repartidor)}</div><div class="stat-label">Tu ganancia de hoy</div></div>
+            `;
+        }
+
+        const listaPedidos = Array.isArray(data) ? data : (data.pedidos || []);
+        
+        const pedidosNuevos = listaPedidos.filter(
             (pedido) => !pedidosConocidosRepartidor || !pedidosConocidosRepartidor.has(pedido.id_pedido)
         );
+        
         pedidosNuevos.forEach(agregarNotificacionRepartidor);
-        pedidosConocidosRepartidor = new Set(assigned.pedidos.map((pedido) => pedido.id_pedido));
+        pedidosConocidosRepartidor = new Set(listaPedidos.map((pedido) => pedido.id_pedido));
+        
         const container = document.getElementById("contenedorPedidosRepartidor");
-        container.innerHTML = assigned.pedidos.length ? assigned.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(pedido.estado)}">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div><div class="order-actions"><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="En camino">En camino</button><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="Entregado">Entregado</button></div></article>`).join("") : "<p>No tiene domicilios asignados.</p>";
-        container.querySelectorAll(".btn-estado").forEach((button) => button.addEventListener("click", async () => {
-            try { await api(`/pedidos/${button.dataset.id}/estado`, { method: "PUT", body: JSON.stringify({ nuevo_estado: button.dataset.estado }) }); await iniciarRepartidor(); }
-            catch (error) { alert(error.message); }
-        }));
-    } catch (error) { alert(error.message); }
+        if (container) {
+            container.innerHTML = listaPedidos.length ? listaPedidos.map((pedido) => `
+                <article class="order-card">
+                    <div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(pedido.estado)}">${escapeHtml(pedido.estado)}</span></div>
+                    <div class="order-info">${detallePedido(pedido)}</div>
+                    <div class="order-actions">
+                        <button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="En camino">En camino</button>
+                        <button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="Entregado">Entregado</button>
+                    </div>
+                </article>
+            `).join("") : "<p>No tiene domicilios asignados.</p>";
+        }
+    } catch (error) {
+        console.error("Error al cargar datos del repartidor:", error);
+    }
 }
 
 async function iniciarCliente() {
@@ -799,3 +823,20 @@ function iniciarRastreoGPS() {
 if (usuario && usuario.rol === 'repartidor') {
     iniciarRastreoGPS();
 }
+
+// Abrir imagen de evidencia en el modal del admin
+function abrirModalFoto(base64Foto) {
+    abrirModal("Evidencia de Entrega", `
+        <div style="text-align: center;">
+            <img src="${base64Foto}" alt="Evidencia" style="max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid var(--ink-200);" />
+        </div>
+    `);
+}
+
+// Escuchador de clics para los botones de foto
+document.addEventListener('click', (e) => {
+    if (e.target && e.target.classList.contains('btn-ver-foto')) {
+        const foto = e.target.getAttribute('data-foto');
+        if (foto) abrirModalFoto(foto);
+    }
+});

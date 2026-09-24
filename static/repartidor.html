@@ -13,6 +13,97 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css?v=6">
 </head>
+
+<!-- Modal de Detalle de Pedido -->
+<div id="modalDetallePedido" class="modal-detalle-overlay hidden">
+  <div class="modal-detalle-container">
+    
+    <header class="detalle-header">
+      <button type="button" class="btn-back" onclick="cerrarModalDetalle()">←</button>
+      <h3 id="detCodigoPedido">PED-2026-0481</h3>
+      <span id="detBadgeEstado" class="badge">En camino</span>
+    </header>
+
+    <div class="detalle-body">
+      <!-- Datos del Cliente -->
+      <div class="card-info">
+        <span class="card-subtitle">ENTREGAR A</span>
+        <h4 id="detNombreCliente" class="cliente-nombre">Marta Ospina Restrepo</h4>
+        <p id="detDireccion" class="info-texto">Cra 45 #23-11, Apto 502</p>
+        <p id="detBarrioCiudad" class="info-texto highlight">Barrio Laureles — Medellín</p>
+        <p class="info-telefono">☎ <a id="detTelefono" href="tel:3014478890">301 447 8890</a></p>
+
+        <hr class="divider" />
+
+        <span class="card-subtitle">PEDIDO</span>
+        <p id="detDescripcion" class="info-texto">2 almuerzos ejecutivos + 1 jugo natural.</p>
+        <p id="detNotas" class="info-notas">Entregar en portería, preguntar por Marta.</p>
+
+        <hr class="divider" />
+
+        <div class="pago-row">
+          <div>
+            <span class="card-subtitle">Total a cobrar</span>
+            <div id="detMetodoPago" class="metodo-pago">Método de pago: Efectivo</div>
+          </div>
+          <div id="detMontoTotal" class="monto-total">$ 32.000</div>
+        </div>
+      </div>
+
+      <!-- Cambiar Estado y Foto -->
+      <div class="card-info">
+        <span class="card-subtitle">ACTUALIZAR ESTADO</span>
+
+        <form id="formActualizarEstado" onsubmit="guardarEstadoPedido(event)">
+          <div class="timeline-estados">
+            <label class="radio-estado completo">
+              <input type="radio" name="nuevoEstado" value="asignado" /> Asignado
+            </label>
+
+            <label class="radio-estado completo">
+              <input type="radio" name="nuevoEstado" value="recogido" /> Recogido
+            </label>
+
+            <label class="radio-estado activo">
+              <input type="radio" name="nuevoEstado" value="en_camino" /> <strong>En camino</strong>
+            </label>
+
+            <label class="radio-estado">
+              <input type="radio" name="nuevoEstado" value="entregado" /> Entregado
+            </label>
+
+            <label class="radio-estado novedad">
+              <input type="radio" name="nuevoEstado" value="no_entregado" /> No entregado / novedad
+            </label>
+          </div>
+
+          <div class="input-group">
+            <label class="field-label">OBSERVACIÓN (OPCIONAL)</label>
+            <input type="text" id="inputObservacion" class="form-control" placeholder="Ej.: cliente no contesta, se deja en portería" />
+          </div>
+
+          <div class="input-group">
+            <label class="field-label">EVIDENCIA DE ENTREGA</label>
+            <label for="fotoComprobanteInput" class="btn-foto-upload">
+              📷 <span id="fotoLabelText">Tomar foto del comprobante</span>
+              <input type="file" id="fotoComprobanteInput" accept="image/*" capture="environment" onchange="previewFoto(event)" style="display:none;" />
+            </label>
+            <img id="imgPreviewEvidencia" class="preview-foto hidden" alt="Vista previa" />
+          </div>
+
+          <button type="submit" id="btnGuardarEstado" class="btn-guardar-estado">
+            Guardar estado
+          </button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Enlace a los scripts al final -->
+<script src="repartidor.js"></script>
+
 <body class="role-repartidor">
 <header class="header">
     <div class="brand">

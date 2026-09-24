@@ -330,17 +330,21 @@ class PedidoCliente(BaseModel):
 
 class ActualizarEstado(BaseModel):
     nuevo_estado: str = Field(min_length=2)
+    observaciones: Optional[str] = None
+    evidencia_foto: Optional[str] = None
 
     @field_validator("nuevo_estado")
     @classmethod
     def estado_valido(cls, value: str) -> str:
-        if value not in ESTADOS_PEDIDO:
-            raise ValueError(f"Estado inválido. Use uno de: {', '.join(ESTADOS_PEDIDO)}.")
-        estados_permitidos = ESTADOS_PEDIDO + ["En espera", "Cancelado por el cliente", "Recibido con conformidad"]
+        estados_permitidos = ESTADOS_PEDIDO + [
+            "En espera", 
+            "Cancelado por el cliente", 
+            "Recibido con conformidad",
+            "asignado", "recogido", "en_camino", "entregado", "no_entregado"
+        ]
         if value not in estados_permitidos:
             raise ValueError(f"Estado inválido. Use uno de: {', '.join(estados_permitidos)}.")
         return value
-
 
 class ActualizarPedido(BaseModel):
     direccion_recogida: str = Field(min_length=3)
@@ -836,6 +840,81 @@ def editar_pedido(id_pedido: int, datos: ActualizarPedido, actual: dict = Depend
         )
     return {"mensaje": "Domicilio actualizado correctamente."}
 
+@app.put("/pedidos/{id_pedido}/estado")
+def actualizar_estado_pedido(
+    id_pedido: int, datos: ActualizarEstado, actual: dict = Depends(usuario_actual)
+):
+    exigir_rol(actual, "repartidor", "administrador", "cliente")
+    
+    with conectar_db() as db:
+        pedido = db.execute("SELECT id_cliente FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone()
+        if not pedido:
+            raise HTTPException(status_code=404, detail="El domicilio no existe.")
+            
+        if actual["rol"] == "repartidor":
+            assigned = db.execute(
+                """
+                SELECT 1 FROM pedidos p
+                JOIN repartidores r ON r.id_repartidor = p.id_repartidor
+                WHERE p.id_pedido = ? AND r.id_usuario = ?
+                """,
+                (id_pedido, actual["id_usuario"]),
+            ).fetchone()
+            if not assigned:
+                raise HTTPException(status_code=403, detail="Solo puede actualizar domicilios asignados.")
+                
+        if actual["rol"] == "cliente":
+            es_dueno = db.execute(
+                "SELECT 1 FROM clientes WHERE id_cliente = ? AND id_usuario = ?",
+                (pedido["id_cliente"], actual["id_usuario"])
+            ).fetchone()
+            if not es_dueno:
+                raise HTTPException(status_code=403, detail="No puedes actualizar pedidos de otros clientes.")
+            
+            estado_actual = db.execute("SELECT estado FROM pedidos WHERE id_pedido = ?", (id_pedido,)).fetchone()["estado"]
+            
+            if datos.nuevo_estado == "Cancelado por el cliente":
+                if estado_actual not in ["Pendiente"]:
+                    raise HTTPException(status_code=400, detail="Solo puedes cancelar un pedido que está Pendiente.")
+                datos.nuevo_estado = "Cancelado"
+                
+            elif datos.nuevo_estado == "Recibido con conformidad":
+                if estado_actual not in ["En camino", "Entregado"]:
+                    raise HTTPException(status_code=400, detail="Solo puedes confirmar un pedido que ya está en camino o entregado.")
+                datos.nuevo_estado = "Entregado"
+                
+            elif datos.nuevo_estado == "En espera":
+                if estado_actual != "Pendiente":
+                    raise HTTPException(status_code=400, detail="El pedido no puede volver a espera.")
+                datos.nuevo_estado = "Pendiente"
+            else:
+                raise HTTPException(status_code=403, detail="Estado no permitido para clientes.")
+
+        # Guardar actualización de estado, observaciones y evidencia si vienen
+        obs = getattr(datos, 'observaciones', None) or getattr(datos, 'observacion', None)
+        foto = getattr(datos, 'evidencia_foto', None)
+
+        if obs and foto:
+            db.execute(
+                "UPDATE pedidos SET estado = ?, observaciones = ?, evidencia_foto = ? WHERE id_pedido = ?", 
+                (datos.nuevo_estado, obs, foto, id_pedido)
+            )
+        elif obs:
+            db.execute(
+                "UPDATE pedidos SET estado = ?, observaciones = ? WHERE id_pedido = ?", 
+                (datos.nuevo_estado, obs, id_pedido)
+            )
+        elif foto:
+            db.execute(
+                "UPDATE pedidos SET estado = ?, evidencia_foto = ? WHERE id_pedido = ?", 
+                (datos.nuevo_estado, foto, id_pedido)
+            )
+        else:
+            db.execute("UPDATE pedidos SET estado = ? WHERE id_pedido = ?", (datos.nuevo_estado, id_pedido))
+
+        _registrar_historial(db, id_pedido, datos.nuevo_estado, actual["id_usuario"])
+        
+    return {"mensaje": "Estado actualizado correctamente.", "nuevo_estado": datos.nuevo_estado}
 
 @app.get("/repartidores/activos")
 def obtener_repartidores_activos(actual: dict = Depends(usuario_actual)):
@@ -1066,53 +1145,84 @@ def cancelar_pedido(id_pedido: int, actual: dict = Depends(usuario_actual)):
     return {"mensaje": "Domicilio cancelado correctamente.", "id_pedido": id_pedido}
 
 
-@app.get("/repartidores/{id_repartidor}/pedidos")
-def pedidos_del_repartidor(id_repartidor: int, actual: dict = Depends(usuario_actual)):
-    exigir_rol(actual, "repartidor")
-    with conectar_db() as db:
-        driver = db.execute(
-            "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (id_repartidor,)
-        ).fetchone()
-        if not driver or driver["id_usuario"] != actual["id_usuario"]:
-            raise HTTPException(status_code=403, detail="No puede consultar pedidos de otro repartidor.")
-        pedidos = pedido_query(db, " WHERE p.id_repartidor = ?", (id_repartidor,))
-    return {"total_pedidos": len(pedidos), "pedidos": pedidos}
-
-
 @app.get("/repartidores/me/pedidos")
 def pedidos_del_repartidor_actual(actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "repartidor")
     with conectar_db() as db:
         driver = db.execute(
-            "SELECT id_repartidor FROM repartidores WHERE id_usuario = ? AND EXISTS "
-            "(SELECT 1 FROM usuarios WHERE id_usuario = ? AND activo = 1)",
-            (actual["id_usuario"], actual["id_usuario"]),
+            "SELECT id_repartidor FROM repartidores WHERE id_usuario = ?",
+            (actual["id_usuario"],),
         ).fetchone()
+        
         if not driver:
-            raise HTTPException(status_code=404, detail="No existe un perfil activo de domiciliario.")
+            return []
+            
         pedidos = pedido_query(db, " WHERE p.id_repartidor = ?", (driver["id_repartidor"],))
+        return pedidos
+
+@app.get("/repartidores/{id_repartidor}/pedidos")
+def pedidos_del_repartidor(id_repartidor: str, actual: dict = Depends(usuario_actual)):
+    exigir_rol(actual, "repartidor")
+    with conectar_db() as db:
+        if id_repartidor == "me":
+            driver = db.execute(
+                "SELECT id_repartidor FROM repartidores WHERE id_usuario = ?",
+                (actual["id_usuario"],),
+            ).fetchone()
+            if not driver:
+                return {"total_pedidos": 0, "pedidos": []}
+            rep_id = driver["id_repartidor"]
+        else:
+            try:
+                rep_id = int(id_repartidor)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="ID de repartidor inválido.")
+
+            driver = db.execute(
+                "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (rep_id,)
+            ).fetchone()
+            if not driver or driver["id_usuario"] != actual["id_usuario"]:
+                raise HTTPException(status_code=403, detail="No puede consultar pedidos de otro repartidor.")
+
+        pedidos = pedido_query(db, " WHERE p.id_repartidor = ?", (rep_id,))
+    
+    # Devuelve el objeto con la clave 'pedidos' que espera tu JavaScript
     return {"total_pedidos": len(pedidos), "pedidos": pedidos}
 
-
 @app.get("/repartidores/{id_repartidor}/ganancias")
-def ganancias_repartidor(id_repartidor: int, fecha: Optional[str] = None, actual: dict = Depends(usuario_actual)):
+def ganancias_repartidor(id_repartidor: str, fecha: Optional[str] = None, actual: dict = Depends(usuario_actual)):
     exigir_rol(actual, "administrador", "repartidor")
     fecha = fecha or datetime.now().date().isoformat()
     with conectar_db() as db:
-        driver = db.execute(
-            "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (id_repartidor,)
-        ).fetchone()
-        if not driver:
-            raise HTTPException(status_code=404, detail="El repartidor no existe.")
-        if actual["rol"] == "repartidor" and driver["id_usuario"] != actual["id_usuario"]:
-            raise HTTPException(status_code=403, detail="No puede consultar las ganancias de otro repartidor.")
+        if id_repartidor == "me":
+            driver = db.execute(
+                "SELECT id_repartidor FROM repartidores WHERE id_usuario = ?",
+                (actual["id_usuario"],),
+            ).fetchone()
+            if not driver:
+                raise HTTPException(status_code=404, detail="No existe un perfil activo de domiciliario.")
+            rep_id = driver["id_repartidor"]
+        else:
+            try:
+                rep_id = int(id_repartidor)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="ID de repartidor inválido.")
+
+            driver = db.execute(
+                "SELECT id_usuario FROM repartidores WHERE id_repartidor = ?", (rep_id,)
+            ).fetchone()
+            if not driver:
+                raise HTTPException(status_code=404, detail="El repartidor no existe.")
+            if actual["rol"] == "repartidor" and driver["id_usuario"] != actual["id_usuario"]:
+                raise HTTPException(status_code=403, detail="No puede consultar las ganancias de otro repartidor.")
+
         fila = db.execute(
             """
             SELECT COUNT(*) AS entregas, COALESCE(SUM(p.valor_servicio), 0) AS valor_total
             FROM historial_pedidos h JOIN pedidos p ON p.id_pedido = h.id_pedido
             WHERE h.estado = 'Entregado' AND date(h.fecha_hora) = ? AND p.id_repartidor = ?
             """,
-            (fecha, id_repartidor),
+            (fecha, rep_id),
         ).fetchone()
     return {"fecha": fecha, "entregas": fila["entregas"], "porcentaje_repartidor": PORCENTAJE_REPARTIDOR,
              **_desglosar_ganancia(fila["valor_total"])}
