@@ -645,11 +645,10 @@ async function iniciarRepartidor() {
             <div class="stat-card"><div class="stat-value">${dinero(ganancias.comision_repartidor)}</div><div class="stat-label">Tu ganancia de hoy</div></div>
         `;
         const assigned = data;
-        if (pedidosConocidosRepartidor) {
-            assigned.pedidos
-                .filter((pedido) => !pedidosConocidosRepartidor.has(pedido.id_pedido))
-                .forEach(agregarNotificacionRepartidor);
-        }
+        const pedidosNuevos = assigned.pedidos.filter(
+            (pedido) => !pedidosConocidosRepartidor || !pedidosConocidosRepartidor.has(pedido.id_pedido)
+        );
+        pedidosNuevos.forEach(agregarNotificacionRepartidor);
         pedidosConocidosRepartidor = new Set(assigned.pedidos.map((pedido) => pedido.id_pedido));
         const container = document.getElementById("contenedorPedidosRepartidor");
         container.innerHTML = assigned.pedidos.length ? assigned.pedidos.map((pedido) => `<article class="order-card"><div class="order-header"><strong>Domicilio #${pedido.id_pedido}</strong><span class="badge ${badgeClaseEstado(pedido.estado)}">${escapeHtml(pedido.estado)}</span></div><div class="order-info">${detallePedido(pedido)}</div><div class="order-actions"><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="En camino">En camino</button><button class="btn-action btn-entregado btn-estado" data-id="${pedido.id_pedido}" data-estado="Entregado">Entregado</button></div></article>`).join("") : "<p>No tiene domicilios asignados.</p>";
@@ -666,15 +665,12 @@ async function iniciarCliente() {
     let pedidosClienteConocidos = null;
     const cargarMisPedidos = async () => {
         const data = await api("/clientes/me/pedidos");
-        const cambios = [];
-        if (pedidosClienteConocidos) {
-            data.pedidos.forEach((pedido) => {
-                const anterior = pedidosClienteConocidos.get(pedido.id_pedido);
-                if (anterior && (anterior.estado !== pedido.estado || anterior.repartidor !== pedido.repartidor)) {
-                    cambios.push(pedido);
-                }
-            });
-        }
+        const cambios = data.pedidos.filter((pedido) => {
+            const anterior = pedidosClienteConocidos?.get(pedido.id_pedido);
+            return !anterior
+                ? pedido.estado === "Asignado"
+                : anterior.estado !== pedido.estado || anterior.repartidor !== pedido.repartidor;
+        });
         pedidosClienteConocidos = new Map(data.pedidos.map((pedido) => [pedido.id_pedido, pedido]));
         const contenedor = document.getElementById("contenedorPedidosCliente");
         if (contenedor) {
